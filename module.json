@@ -1,0 +1,43 @@
+{
+  "id": "cantrip-counter",
+  "title": "Cantrip Counter",
+  "description": "Adds a dynamic cantrip resource system with optional spell slot conversion mechanics for DnD5e. Supports Warlock Pact Magic, per-character overrides, configurable conversion caps, and full integration with the DnD5e V2 character sheet.",
+  "version": "1.0.0",
+  "authors": [
+    {
+      "name": "DM Sean",
+      "url": "https://github.com/yourname",
+      "discord": "SeanWillims1964"
+    }
+  ],
+  "compatibility": {
+    "minimum": "13",
+    "verified": "13",
+    "maximum": "13"
+  },
+  "relationships": {
+    "systems": [
+      {
+        "id": "dnd5e",
+        "type": "system",
+        "compatibility": {
+          "minimum": "5.2.5",
+          "verified": "5.2.5"
+        }
+      }
+    ]
+  },
+  "esmodules": [
+    "cantrip-counter.js"
+  ],
+  "styles": [],
+  "packs": [],
+  "languages": [],
+  "socket": false,
+  "url": "https://github.com/yourname/cantrip-counter",
+  "manifest": "https://raw.githubusercontent.com/yourname/cantrip-counter/main/module.json",
+  "download": "https://github.com/yourname/cantrip-counter/releases/latest/download/cantrip-counter.zip",
+  "bugs": "https://github.com/yourname/cantrip-counter/issues",
+  "license": "MIT",
+  "readme": "README.md"
+}
