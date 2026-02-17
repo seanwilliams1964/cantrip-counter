@@ -232,3 +232,20 @@ export function updateGearGlow(html, actor, glowColor) {
 
   gear.style.boxShadow = `0 0 6px 2px ${glowColor}`;
 }
+
+/*  RESTORE CONVERSION IF NEEDED                */
+
+export function cleanUpAndRestoreConversion(liveIcon, actor) {
+
+  const restoredIcon = liveIcon.cloneNode(true);
+  liveIcon.replaceWith(restoredIcon);
+
+  restoredIcon.style.cursor = "pointer";
+  restoredIcon.title = "Convert Cantrips to Spell Slots";
+
+  restoredIcon.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openConversionDialog(actor);
+  });
+}

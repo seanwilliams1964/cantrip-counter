@@ -2,7 +2,7 @@
   "id": "cantrip-counter",
   "title": "Cantrip Counter",
   "description": "Adds a dynamic Cantrip resource with optional spell slot conversion support for DnD5e.",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "authors": [
     {
       "name": "Sean Williams",
@@ -10,7 +10,15 @@
     }
   ],
   "esmodules": [
-    "scripts/cantrip-counter.js"
+    "scripts/cantrip-counter.js",
+    "scripts/castings.js",
+    "scripts/debug.js",
+    "scripts/dialogs.js",
+    "scripts/favorites.js",
+    "scripts/helpers.js",
+    "scripts/resources.js",
+    "scripts/settings.js",
+    "scripts/ui.js"
   ],
   "styles": [],
   "compatibility": {
@@ -26,7 +34,7 @@
     ]
   },
   "manifest": "https://raw.githubusercontent.com/seanwilliams1964/cantrip-counter/main/module.json",
-  "download": "https://github.com/seanwilliams1964/cantrip-counter/releases/download/v1.0.0/cantrip-counter.zip",
+  "download": "https://github.com/seanwilliams1964/cantrip-counter/releases/latest/download/cantrip-counter.zip",
   "license": "MIT",
   "readme": "https://github.com/seanwilliams1964/cantrip-counter/blob/main/README.md",
   "bugs": "https://github.com/seanwilliams1964/cantrip-counter/issues"
