@@ -1,5 +1,6 @@
-import { getSpellcastingAbilityScore } from "./helpers.js";
+import { getConversionsUsed, getSpellcastingAbilityScore } from "./helpers.js";
 import { resetConversionsUsed } from "./helpers.js";
+import { MODULE_ID } from "./settings.js";
 import { debugLog } from "./debug.js";
 
 /* -------------------------------------------- */
@@ -64,7 +65,7 @@ Hooks.on("updateActor", async (actor, changes) => {
 /*  REST COMPLETED                              */
 /* -------------------------------------------- */
 
-Hooks.on("dnd5e.restCompleted", async (actor) => {
+Hooks.on("dnd5e.shortRest", async (actor) => {
 
   if (!actor || actor.type !== "character") return;
 
@@ -80,12 +81,19 @@ Hooks.on("dnd5e.restCompleted", async (actor) => {
 
   ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
-    content: `<p><strong>${actor.name}</strong>'s Cantrip Uses have been fully restored.<br>Total Available: ${abilityScore}</p>`,
+    content: `
+      <p>
+        <strong>${actor.name}</strong>'s Cantrip Uses
+        have been restored.
+        <br>Total Available: ${abilityScore}
+      </p>
+    `,
     style: CONST.CHAT_MESSAGE_STYLES.OTHER
   });
 
   if (actor.sheet?.rendered) actor.sheet.render(true);
 });
+
 
 /* -------------------------------------------- */
 /*  LONG REST                                   */
@@ -105,11 +113,35 @@ Hooks.on("dnd5e.longRest", async (actor) => {
     "system.resources.primary.value": abilityScore
   });
 
-  await resetConversionsUsed(actor);
+  /* ---------- Conversion Reset Check ---------- */
+
+  let conversionsReset = false;
+
+  if (getConversionsUsed(actor) > 0) {
+    await resetConversionsUsed(actor);
+    conversionsReset = true;
+  }
+
+  /* ---------- Chat Message ---------- */
+
+  let content = `
+    <p>
+      <strong>${actor.name}</strong>'s Cantrip Uses
+      have been fully restored.
+      <br>Total Available: ${abilityScore}
+  `;
+
+  if (conversionsReset) {
+    content += `
+      <br>Conversions have been reset for the new long rest.
+    `;
+  }
+
+  content += `</p>`;
 
   ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
-    content: `<p><strong>${actor.name}</strong>'s Cantrip Uses restored.<br>Total Available: ${abilityScore}</p>`,
+    content,
     style: CONST.CHAT_MESSAGE_STYLES.OTHER
   });
 
@@ -146,8 +178,6 @@ export async function refreshAllCantripMaximums() {
     await refreshSingleActorMaximum(actor);
   }
 }
-
-import { MODULE_ID } from "./settings.js";
 
 /* -------------------------------------------- */
 /*  BONUS CANTRIP SETTING CHANGE LISTENER       */

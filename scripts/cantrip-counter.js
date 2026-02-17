@@ -23,7 +23,7 @@ import "./ui.js";
 import { debugLog } from "./debug.js";
 
 Hooks.once("ready", () => {
-  debugLog("=== Cantrip Counter (5.2.5 Compatible) Loaded ===");
+  debugLog("=== Cantrip Counter 1.0.2 Loaded ===");
 });
 
 /* -------------------------------------------- */
