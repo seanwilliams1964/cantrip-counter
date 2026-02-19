@@ -74,6 +74,33 @@ function applyCantripLogic(app, root, primaryResource) {
   debugLog(`Is Edit Mode: ${isEditMode}`);
   debugLog(`Is Conversion Enabled: ${conversionEnabled}`);
 
+  /* ---------- Restrict Manual Editing For Non-GM ---------- */
+
+  const valueInput = primaryResource.querySelector(
+    'input.uninput.value'
+  );
+
+  if (valueInput) {
+
+    if (!game.user.isGM) {
+
+      debugLog("Disabling manual cantrip editing for non-GM");
+
+      valueInput.disabled = true;
+      valueInput.style.pointerEvents = "none";
+      valueInput.style.opacity = "0.7";
+      valueInput.title = "Only the GM may manually adjust cantrip uses.";
+
+    } else {
+
+      // Restore normal behavior for GM
+      valueInput.disabled = false;
+      valueInput.style.pointerEvents = "";
+      valueInput.style.opacity = "";
+      valueInput.title = "";
+    }
+  }
+
   /* ---------- Replace Icon ---------- */
 
   const customIcon = game.settings.get(MODULE_ID, "cantripIcon");
