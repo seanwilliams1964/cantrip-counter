@@ -90,7 +90,7 @@ export function updateCantripResourceColor(html, actor) {
   const value = resource.value ?? 0;
   const max = resource.max ?? 1;
 
-  const percent = max > 0 ? value / max : 0;
+  const percent = max > 0 ? (value / max) * 100 : 0;
 
   const valueInput = html.querySelector(
     'li.resource[data-favorite-id="resources.primary"] input.uninput.value'
@@ -98,21 +98,36 @@ export function updateCantripResourceColor(html, actor) {
 
   if (!valueInput) return null;
 
+  // 🔹 Pull colors
+  const glowLow = game.settings.get("cantrip-counter", "glowLow");
+  const glowMedium = game.settings.get("cantrip-counter", "glowMedium");
+  const glowHigh = game.settings.get("cantrip-counter", "glowHigh");
+
+  // 🔹 Pull thresholds
+  let thresholdLow = game.settings.get("cantrip-counter", "thresholdLow");
+  let thresholdMedium = game.settings.get("cantrip-counter", "thresholdMedium");
+
+  // 🔹 Safety guard: enforce logical ordering
+  if (thresholdLow >= thresholdMedium) {
+    thresholdLow = 25;
+    thresholdMedium = 50;
+  }
+
   let color;
 
-  if (percent <= 0.25) {
-    color = "#d32f2f"; // Red
+  if (percent <= thresholdLow) {
+    color = glowLow;
   }
-  else if (percent <= 0.5) {
-    color = "#f9a825"; // Yellow
+  else if (percent <= thresholdMedium) {
+    color = glowMedium;
   }
   else {
-    color = "#43a047"; // Green
+    color = glowHigh;
   }
 
   valueInput.style.setProperty("color", color, "important");
 
-  return color; // 👈 IMPORTANT
+  return color;
 }
 
 export function updateConversionGlow(html, actor, glowColor) {

@@ -23,6 +23,36 @@ import "./ui.js";
 import { debugLog } from "./debug.js";
 
 Hooks.once("ready", () => {
+
+  const requiredModuleId = "color-picker";
+  const requiredModule = game.modules.get(requiredModuleId);
+
+  if (!requiredModule || !requiredModule.active) {
+
+    if (game.user.isGM) {
+
+      new Dialog({
+        title: "Cantrip Counter – Missing Dependency",
+        content: `
+          <p><strong>Cantrip Counter</strong> requires the <strong>Color Picker</strong> module to enable custom color configuration.</p>
+          <p>Please install and activate it to use color customization features.</p>
+        `,
+        buttons: {
+          install: {
+            label: "Open Module Browser",
+            callback: () => {
+              new ModuleManagement().render(true);
+            }
+          },
+          close: {
+            label: "Close"
+          }
+        },
+        default: "close"
+      }).render(true);
+    }
+  }
+
   debugLog("=== Cantrip Counter 1.0.2 Loaded ===");
 });
 

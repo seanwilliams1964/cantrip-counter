@@ -72,4 +72,86 @@ Hooks.once("init", () => {
     type: Number,
     default: 0
   });
+
+  // Low Threshold Color
+  game.settings.register("cantrip-counter", "glowLow", {
+    name: "Low Resource Color",
+    hint: "Color used when cantrip uses are at or below 25%.",
+    scope: "world",
+    config: true,
+    restricted: true,
+    type: new game.colorPicker.ColorPickerField(),
+    default: "#ff0000",
+    onChange: () => Hooks.callAll("cantripCounterRefreshUI")
+  });
+
+  // Medium Threshold Color
+   game.settings.register("cantrip-counter", "glowMedium", {
+    name: "Medium Resource Color",
+    hint: "Color used when cantrip uses are between 25% and 50%.",
+    scope: "world",
+    config: true,
+    restricted: true,
+    type: new game.colorPicker.ColorPickerField(),
+    default: "#ffff00",
+    onChange: () => Hooks.callAll("cantripCounterRefreshUI")
+  });
+
+  // High Threshold Color
+  game.settings.register("cantrip-counter", "glowHigh", {
+    name: "High Resource Color",
+    hint: "Color used when cantrip uses are above 50%.",
+    scope: "world",
+    config: true,
+    restricted: true,
+    type: new game.colorPicker.ColorPickerField(),
+    default: "#00ff00",
+    onChange: () => Hooks.callAll("cantripCounterRefreshUI")
+  });
+
+  // Low Threshold Percentage
+  game.settings.register("cantrip-counter", "thresholdLow", {
+    name: "Low Threshold (%)",
+    hint: "Percentage at or below which the resource is considered Low.",
+    scope: "world",
+    config: true,
+    restricted: true,
+    type: Number,
+    default: 25,
+    range: {
+      min: 0,
+      max: 100,
+      step: 1
+    },
+    onChange: (value) => {
+      const medium = game.settings.get("cantrip-counter", "thresholdMedium");
+      if (value >= medium) {
+        ui.notifications.warn("Low threshold must be less than Medium threshold.");
+      }
+      Hooks.callAll("cantripCounterRefreshUI");
+    }
+  });
+
+  // Medium Threshold Percentage
+  game.settings.register("cantrip-counter", "thresholdMedium", {
+    name: "Medium Threshold (%)",
+    hint: "Percentage at or below which the resource is considered Medium.",
+    scope: "world",
+    config: true,
+    restricted: true,
+    type: Number,
+    default: 50,
+    range: {
+      min: 0,
+      max: 100,
+      step: 1
+    },
+    onChange: (value) => {
+      const low = game.settings.get("cantrip-counter", "thresholdLow");
+      if (value <= low) {
+        ui.notifications.warn("Medium threshold must be greater than Low threshold.");
+      }
+      Hooks.callAll("cantripCounterRefreshUI");
+    }
+  });
 });

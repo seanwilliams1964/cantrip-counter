@@ -35,6 +35,17 @@ if (!primaryResource) return;
   applyCantripLogic(app, root, primaryResource);
 });
 
+/* -------------------------------------------- */
+/*  UI REFRESH                                  */
+/* -------------------------------------------- */
+
+Hooks.on("cantripCounterRefreshUI", () => {
+  for (const app of Object.values(ui.windows)) {
+    if (app?.object?.type === "character") {
+      app.render(false);
+    }
+  }
+});
 
 /* -------------------------------------------- */
 /*  APPLY CANTRIP LOGIC                         */
@@ -163,6 +174,7 @@ function applyCantripLogic(app, root, primaryResource) {
   /* ---------- Apply Color + Glow ---------- */
 
   const color = updateCantripResourceColor(root, actor);
+
   updateConversionGlow(root, actor, color);
   updateGearGlow(root, actor, color);
 }
