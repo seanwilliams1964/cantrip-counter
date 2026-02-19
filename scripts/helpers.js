@@ -286,6 +286,23 @@ export function updateGearGlow(html, actor, glowColor) {
   gear.style.boxShadow = `0 0 6px 2px ${glowColor}`;
 }
 
+export function getRemainingCantrips(actor) {
+
+  if (!actor) return 0;
+
+  const resource = actor.system?.resources?.primary;
+
+  if (!resource) return 0;
+
+  debugLog("Fired getRemainingCantrips for actor:", actor.name, " with resource:", resource);
+  
+  return Number(resource.value ?? 0);
+}
+
+export function hasRemainingCantrips(actor) {
+  return getRemainingCantrips(actor) > 0;
+}
+
 /*  RESTORE CONVERSION IF NEEDED                */
 
 export function cleanUpAndRestoreConversion(liveIcon, actor) {

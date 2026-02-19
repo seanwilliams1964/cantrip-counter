@@ -1,4 +1,5 @@
 import { debugLog } from "./debug.js";
+import { hasRemainingCantrips } from "./helpers.js";
 
 Hooks.on("preUpdateActor", (actor, updateData, options, userId) => {
 
@@ -67,6 +68,52 @@ Hooks.on("updateActor", (actor, changed) => {
 
   debugLog("Exiting updateActor hook.");
 });
+
+
+Hooks.on("dnd5e.preUseActivity", (activity, config, options) => {
+
+  debugLog("Fired dnd5e.preUseActivity with activity:", activity.type);
+
+  const item = activity?.item; const actor = activity?.actor;
+
+  if (!item || !actor) return;
+
+  if (actor.type !== "character") return;
+
+  // Only spells
+  if (item.type !== "spell") return;
+
+  const spellLevel = item.system.level ?? 0;
+
+  // Only cantrips
+  if (spellLevel !== 0) return;
+
+  /* ---- Allow Exceptions ---- */
+
+  // Scroll
+  if (item.system.source?.type === "scroll") return;
+
+  // At-will
+  if (item.system.preparation?.mode === "atwill") return;
+
+  // Item uses
+  if (item.system.uses?.max > 0) return;
+
+  /* ---- Block If Empty ---- */
+
+  if (!hasRemainingCantrips(actor)) {
+
+    debugLog("No remaining cantrips for actor:", actor.name);
+
+    ui.notifications.warn(
+      `${actor.name} has no remaining cantrip uses.`
+    );
+
+    return false; // Cancels activity
+  }
+});
+
+
 
 function requestActorSheetRefresh(actor) {
 

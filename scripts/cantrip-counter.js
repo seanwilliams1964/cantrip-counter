@@ -53,7 +53,7 @@ Hooks.once("ready", () => {
     }
   }
 
-  debugLog("=== Cantrip Counter 1.0.2 Loaded ===");
+  debugLog("=== Cantrip Counter Loaded ===");
 });
 
 
