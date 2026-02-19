@@ -14,10 +14,7 @@ Hooks.on("preUpdateActor", (actor, updateData, options, userId) => {
   /* GM Restriction */
 
   if (!game.user.isGM) {
-    ui.notifications.warn("Only the GM may manually adjust cantrip uses.");
     
-     debugLog("Blocked non-GM manual cantrip value change.");
-
     // Force sheet refresh since we are blocking change
     requestActorSheetRefresh(actor);
 
