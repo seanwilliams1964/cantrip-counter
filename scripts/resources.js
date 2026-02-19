@@ -1,5 +1,5 @@
 import { getConversionsUsed, getSpellcastingAbilityScore } from "./helpers.js";
-import { resetConversionsUsed } from "./helpers.js";
+import { resetConversionsUsed, refreshSingleActorMaximum, refreshAllCantripMaximums } from "./helpers.js";
 import { MODULE_ID } from "./settings.js";
 import { debugLog } from "./debug.js";
 
@@ -94,7 +94,6 @@ Hooks.on("dnd5e.shortRest", async (actor) => {
   if (actor.sheet?.rendered) actor.sheet.render(true);
 });
 
-
 /* -------------------------------------------- */
 /*  LONG REST                                   */
 /* -------------------------------------------- */
@@ -147,37 +146,6 @@ Hooks.on("dnd5e.longRest", async (actor) => {
 
   if (actor.sheet?.rendered) actor.sheet.render(true);
 });
-
-/* -------------------------------------------- */
-/*  MAX REFRESH                                 */
-/* -------------------------------------------- */
-
-export async function refreshSingleActorMaximum(actor) {
-
-  const abilityScore = getSpellcastingAbilityScore(actor);
-  if (!abilityScore) return;
-
-  const resource = actor.system.resources.primary;
-  if (!resource) return;
-
-  const updates = {
-    "system.resources.primary.max": abilityScore
-  };
-
-  if (resource.value > abilityScore)
-    updates["system.resources.primary.value"] = abilityScore;
-
-  await actor.update(updates);
-}
-
-export async function refreshAllCantripMaximums() {
-
-  for (const actor of game.actors) {
-    if (!actor.hasPlayerOwner) continue;
-    if (actor.type !== "character") continue;
-    await refreshSingleActorMaximum(actor);
-  }
-}
 
 /* -------------------------------------------- */
 /*  BONUS CANTRIP SETTING CHANGE LISTENER       */

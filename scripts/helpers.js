@@ -33,15 +33,22 @@ export function getActorSetting(actor, key, worldSettingKey) {
     return game.settings.get(MODULE_ID, worldSettingKey);
   }
 
-  const actorValue = actor.getFlag(MODULE_ID, key);
+  let actorValue = actor.getFlag(MODULE_ID, key);
 
   if (actorValue !== undefined && actorValue !== null) {
     debugLog("Actor value found:", actorValue);
     return actorValue;
   }
 
-  debugLog("Actor value undefined or null. Returning world setting:");
-  return game.settings.get(MODULE_ID, worldSettingKey);
+  actorValue = game.settings.get(MODULE_ID, worldSettingKey);
+  debugLog(`Actor setting not found, returning world setting: ${worldSettingKey} value: ${actorValue}`);
+
+   if (typeof actorValue === "string" && actorValue.startsWith("#") && actorValue.length === 9) {
+    debugLog("Normalizing 8-digit HEX to 6-digit:", actorValue);
+    actorValue = actorValue.slice(0, 7);
+  }
+
+  return actorValue;
 }
 
 export function isConversionEnabled(actor) {
@@ -84,31 +91,57 @@ export function hasReachedConversionCap(actor) {
 }
 
 export function updateCantripResourceColor(html, actor) {
-  const resource = actor.system.resources.primary;
-  if (!resource) return null;
+
+  debugLog("updateCantripResourceColor called for actor:", actor?.name);
+
+  const resource = actor?.system?.resources?.primary;
+  if (!resource) {
+    debugLog("No primary resource found.");
+    return null;
+  }
 
   const value = resource.value ?? 0;
   const max = resource.max ?? 1;
-
   const percent = max > 0 ? (value / max) * 100 : 0;
+
+  debugLog("Resource values:", { value, max, percent });
 
   const valueInput = html.querySelector(
     'li.resource[data-favorite-id="resources.primary"] input.uninput.value'
   );
 
-  if (!valueInput) return null;
+  if (!valueInput) {
+    debugLog("Primary resource input not found in sheet HTML.");
+    return null;
+  }
 
-  // 🔹 Pull colors
-  const glowLow = game.settings.get("cantrip-counter", "glowLow");
-  const glowMedium = game.settings.get("cantrip-counter", "glowMedium");
-  const glowHigh = game.settings.get("cantrip-counter", "glowHigh");
+  // 🔹 Pull colors (actor override first)
+  const glowLow = getActorSetting(actor, "glowLow", "glowLow");
+  const glowMedium = getActorSetting(actor, "glowMedium", "glowMedium");
+  const glowHigh = getActorSetting(actor, "glowHigh", "glowHigh");
 
-  // 🔹 Pull thresholds
-  let thresholdLow = game.settings.get("cantrip-counter", "thresholdLow");
-  let thresholdMedium = game.settings.get("cantrip-counter", "thresholdMedium");
+  // 🔹 Pull thresholds (actor override first)
+  let thresholdLow = Number(getActorSetting(actor, "thresholdLow", "thresholdLow"));
+  let thresholdMedium = Number(getActorSetting(actor, "thresholdMedium", "thresholdMedium"));
+
+  debugLog("Retrieved actor color settings:", {
+    glowLow,
+    glowMedium,
+    glowHigh
+  });
+
+  debugLog("Retrieved actor thresholds:", {
+    thresholdLow,
+    thresholdMedium
+  });
 
   // 🔹 Safety guard: enforce logical ordering
-  if (thresholdLow >= thresholdMedium) {
+  if (
+    !Number.isFinite(thresholdLow) ||
+    !Number.isFinite(thresholdMedium) ||
+    thresholdLow >= thresholdMedium
+  ) {
+    debugLog("Threshold validation failed. Reverting to safe defaults (25/50).");
     thresholdLow = 25;
     thresholdMedium = 50;
   }
@@ -117,15 +150,20 @@ export function updateCantripResourceColor(html, actor) {
 
   if (percent <= thresholdLow) {
     color = glowLow;
+    debugLog("Percent <= thresholdLow. Using glowLow:", color);
   }
   else if (percent <= thresholdMedium) {
     color = glowMedium;
+    debugLog("Percent <= thresholdMedium. Using glowMedium:", color);
   }
   else {
     color = glowHigh;
+    debugLog("Percent above medium threshold. Using glowHigh:", color);
   }
 
   valueInput.style.setProperty("color", color, "important");
+
+  debugLog("Applied color to resource input:", color);
 
   return color;
 }
@@ -263,4 +301,35 @@ export function cleanUpAndRestoreConversion(liveIcon, actor) {
     event.stopPropagation();
     openConversionDialog(actor);
   });
+}
+
+/* -------------------------------------------- */
+/*  MAX REFRESH                                 */
+/* -------------------------------------------- */
+
+export async function refreshSingleActorMaximum(actor) {
+
+  const abilityScore = getSpellcastingAbilityScore(actor);
+  if (!abilityScore) return;
+
+  const resource = actor.system.resources.primary;
+  if (!resource) return;
+
+  const updates = {
+    "system.resources.primary.max": abilityScore
+  };
+
+  if (resource.value > abilityScore)
+    updates["system.resources.primary.value"] = abilityScore;
+
+  await actor.update(updates);
+}
+
+export async function refreshAllCantripMaximums() {
+
+  for (const actor of game.actors) {
+    if (!actor.hasPlayerOwner) continue;
+    if (actor.type !== "character") continue;
+    await refreshSingleActorMaximum(actor);
+  }
 }

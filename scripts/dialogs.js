@@ -1,4 +1,3 @@
-// dialogs.js (updated to use ApplicationV2 for compatibility with V2 API)
 import { MODULE_ID } from "./settings.js";
 import {
   getCostPerLevel,
@@ -8,7 +7,6 @@ import {
   incrementConversionsUsed,
   hasReachedConversionCap
 } from "./helpers.js";
-import { syncResource } from "./resources.js";
 import { debugLog } from "./debug.js";
 const { ApplicationV2 } = foundry.applications.api;
 

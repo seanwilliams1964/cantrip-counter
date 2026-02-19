@@ -3,6 +3,7 @@ import { isConversionEnabled, updateCantripResourceColor, updateConversionGlow, 
 import { openConversionDialog, openActorConfigDialog } from "./dialogs.js";
 import { debugLog } from "./debug.js";
 import { getRenderedSheetRoot } from "./utility.js";
+import { openActorColorConfig } from "./actor-config.js";
 
 /* -------------------------------------------- */
 /*  RENDER ACTOR SHEET                          */
@@ -28,7 +29,7 @@ Hooks.on("renderActorSheetV2", async (app) => {
   /* -------------------------------------------- */
 
   const primaryResource = root.querySelector('li.resource[data-favorite-id="resources.primary"]');
-if (!primaryResource) return;
+  if (!primaryResource) return;
 
   debugLog(`Primary resource: ${primaryResource}`);  
 
@@ -169,6 +170,34 @@ function applyCantripLogic(app, root, primaryResource) {
 
       headerButtons.appendChild(gear);
     }
+  }
+
+  /* ---------- Player Color Config Icon ---------- */
+
+  // Remove existing icon if present (prevents duplication)
+  const existingColorIcon = primaryResource.querySelector(".cantrip-color-config");
+  if (existingColorIcon) {
+    existingColorIcon.remove();
+  }
+
+  if (isEditMode) {
+
+    const colorIcon = document.createElement("button");
+    colorIcon.type = "button";
+    colorIcon.classList.add("gold-button", "cantrip-color-config");
+    colorIcon.innerHTML = `<i class="fas fa-palette"></i>`;
+    colorIcon.title = "Configure Cantrip Resource Colors";
+    colorIcon.style.marginLeft = "4px";
+
+    colorIcon.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openActorColorConfig(actor);
+    });
+
+    primaryResource.appendChild(colorIcon);
+
+    debugLog("Injected player color configuration icon.");
   }
 
   /* ---------- Apply Color + Glow ---------- */
