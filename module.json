@@ -2,7 +2,7 @@
   "id": "cantrip-counter",
   "title": "Cantrip Counter",
   "description": "Adds a dynamic Cantrip resource with optional spell slot conversion support for DnD5e.",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "authors": [
     {
       "name": "Sean Williams",
@@ -31,7 +31,15 @@
         "id": "dnd5e",
         "type": "system"
       }
-    ]
+    ],
+    "requires": [
+    {
+      "id": "color-picker",
+      "type": "module",
+      "manifest": "https://raw.githubusercontent.com/Larkinabout/fvtt-color-picker/refs/heads/master/module.json",
+      "compatibility": {}
+    }
+  ]
   },
   "manifest": "https://raw.githubusercontent.com/seanwilliams1964/cantrip-counter/main/module.json",
  "download": "https://github.com/seanwilliams1964/cantrip-counter/releases/latest/download/cantrip-counter.zip",
