@@ -1,4 +1,4 @@
-import { MODULE_ID } from "./settings.js";
+import { MODULE_ID } from "../core/settings.js";
 
 export function debugLog(...args) {
   if (!game.settings.get(MODULE_ID, "debug")) return;

@@ -1,5 +1,49 @@
 # Changelog
 
+[1.2.0] - 2026-02-19
+🚀 Added
+Structured module architecture into clearly defined folders:
+core/ – initialization, hooks, and settings
+logic/ – game state, resource handling, and conversion logic
+ui/ – dialogs and sheet interface integrations
+utilities/ – shared helpers, debugging, and DOM utilities
+Centralized cantrip state management into logic/cantrip-state.js
+Dedicated conversion logic handling in logic/conversions.js
+Improved resource synchronization system in logic/resources.js
+Reusable debug logging utility via utilities/debug.js
+
+🔄 Changed
+Reorganized file structure to isolate responsibilities by domain:
+Removed cross-domain method mixing
+Separated UI logic from business logic
+Separated resource mutation from state computation
+Standardized ES module imports across all files
+Corrected import paths to eliminate invalid or circular references
+Consolidated conversion tracking into a single source of truth
+Normalized naming conventions for helper and utility functions
+Updated sheet root handling to use consistent utility abstraction
+Improved Foundry VTT v13 ES module compliance
+Refactored logic to better align with DND5e v5.2.5 system structure
+
+🧹 Removed
+Unused and redundant import statements
+Improper cross-folder function references
+Implicit global dependencies between logic and UI layers
+
+🛠 Fixed
+Missing ES module imports causing runtime reference errors
+Incorrect import sources for:
+Conversion state helpers
+Resource refresh methods
+Inconsistent sheet rendering utility naming
+Potential module load failures under Foundry VTT v13 strict ESM
+
+🏗 Internal Improvements
+Reduced coupling between modules
+Improved separation of concerns
+Enhanced maintainability and scalability
+Prepared foundation for future feature expansion (1.3.x+)
+
 ## 1.0.2 - 1.1.0 — Numerous Iterations With Enhancements
 
 ## Actor-Specific Cantrip Configuration

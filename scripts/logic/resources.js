@@ -1,7 +1,10 @@
-import { getConversionsUsed, getSpellcastingAbilityScore } from "./helpers.js";
-import { resetConversionsUsed, refreshSingleActorMaximum, refreshAllCantripMaximums } from "./helpers.js";
-import { MODULE_ID } from "./settings.js";
-import { debugLog } from "./debug.js";
+import { getSpellcastingAbilityScore } from "../utilities/helpers.js";
+import { 
+  getConversionsUsed, 
+  resetConversionsUsed, 
+  refreshSingleActorMaximum, 
+  refreshAllCantripMaximums 
+} from "./cantrip-state.js";
 
 /* -------------------------------------------- */
 /*  SYNC RESOURCE                               */

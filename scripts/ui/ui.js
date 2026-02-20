@@ -1,13 +1,14 @@
-import { MODULE_ID } from "./settings.js";
-import { isConversionEnabled, updateCantripResourceColor, updateConversionGlow, updateGearGlow } from "./helpers.js";
-import { openConversionDialog, openActorConfigDialog } from "./dialogs.js";
-import { debugLog } from "./debug.js";
-import { getRenderedSheetRoot } from "./utility.js";
-import { openActorColorConfig } from "./actor-config.js";
-
-/* -------------------------------------------- */
-/*  RENDER ACTOR SHEET                          */
-/* -------------------------------------------- */
+import { MODULE_ID, DEFAULT_MAX_CONVERSION_LEVEL } from "../core/settings.js";
+import { openConversionDialog, openActorConfigDialog, openActorColorConfig } from "./dialogs.js";
+import { debugLog } from "../utilities/debug.js";
+import { getRenderedSheetRoot } from "../utilities/utility.js";
+import { getActorSetting } from "../utilities/helpers.js";
+import { getConversionsUsed } from "../logic/cantrip-state.js";
+import {
+  isConversionEnabled,
+  getMaxConversionsPerLongRest,
+  getCostPerLevel,
+} from "../logic/conversions.js";
 
 Hooks.on("renderActorSheetV2", async (app) => {
 
@@ -36,10 +37,6 @@ Hooks.on("renderActorSheetV2", async (app) => {
   applyCantripLogic(app, root, primaryResource);
 });
 
-/* -------------------------------------------- */
-/*  UI REFRESH                                  */
-/* -------------------------------------------- */
-
 Hooks.on("cantripCounterRefreshUI", () => {
   for (const app of Object.values(ui.windows)) {
     if (app?.object?.type === "character") {
@@ -47,10 +44,6 @@ Hooks.on("cantripCounterRefreshUI", () => {
     }
   }
 });
-
-/* -------------------------------------------- */
-/*  APPLY CANTRIP LOGIC                         */
-/* -------------------------------------------- */
 
 function applyCantripLogic(app, root, primaryResource) {
 
@@ -233,4 +226,200 @@ function applyCantripLogic(app, root, primaryResource) {
 
   updateConversionGlow(root, actor, color);
   updateGearGlow(root, actor, color);
+}
+
+function updateCantripResourceColor(html, actor) {
+
+  debugLog("updateCantripResourceColor called for actor:", actor?.name);
+
+  const resource = actor?.system?.resources?.primary;
+  if (!resource) {
+    debugLog("No primary resource found.");
+    return null;
+  }
+
+  const value = resource.value ?? 0;
+  const max = resource.max ?? 1;
+  const percent = max > 0 ? (value / max) * 100 : 0;
+
+  debugLog("Resource values:", { value, max, percent });
+
+  const valueInput = html.querySelector(
+    'li.resource[data-favorite-id="resources.primary"] input.uninput.value'
+  );
+
+  if (!valueInput) {
+    debugLog("Primary resource input not found in sheet HTML.");
+    return null;
+  }
+
+  // 🔹 Pull colors (actor override first)
+  const glowLow = getActorSetting(actor, "glowLow", "glowLow");
+  const glowMedium = getActorSetting(actor, "glowMedium", "glowMedium");
+  const glowHigh = getActorSetting(actor, "glowHigh", "glowHigh");
+
+  // 🔹 Pull thresholds (actor override first)
+  let thresholdLow = Number(getActorSetting(actor, "thresholdLow", "thresholdLow"));
+  let thresholdMedium = Number(getActorSetting(actor, "thresholdMedium", "thresholdMedium"));
+
+  debugLog("Retrieved actor color settings:", {
+    glowLow,
+    glowMedium,
+    glowHigh
+  });
+
+  debugLog("Retrieved actor thresholds:", {
+    thresholdLow,
+    thresholdMedium
+  });
+
+  // 🔹 Safety guard: enforce logical ordering
+  if (
+    !Number.isFinite(thresholdLow) ||
+    !Number.isFinite(thresholdMedium) ||
+    thresholdLow >= thresholdMedium
+  ) {
+    debugLog("Threshold validation failed. Reverting to safe defaults (25/50).");
+    thresholdLow = 25;
+    thresholdMedium = 50;
+  }
+
+  let color;
+
+  if (percent <= thresholdLow) {
+    color = glowLow;
+    debugLog("Percent <= thresholdLow. Using glowLow:", color);
+  }
+  else if (percent <= thresholdMedium) {
+    color = glowMedium;
+    debugLog("Percent <= thresholdMedium. Using glowMedium:", color);
+  }
+  else {
+    color = glowHigh;
+    debugLog("Percent above medium threshold. Using glowHigh:", color);
+  }
+
+  valueInput.style.setProperty("color", color, "important");
+
+  debugLog("Applied color to resource input:", color);
+
+  return color;
+}
+
+ function updateConversionGlow(html, actor, glowColor) {
+
+  const conversionEnabled = isConversionEnabled(actor);
+  if (!conversionEnabled) return;
+
+  const resourceRow = html.querySelector(
+    'li.resource[data-favorite-id="resources.primary"]'
+  );
+  if (!resourceRow) return;
+
+  const maxConversions = getMaxConversionsPerLongRest(actor);
+  const used = getConversionsUsed(actor);
+
+  if (maxConversions > 0 && used >= maxConversions) {
+    resourceRow.style.boxShadow = "";
+    return;
+  }
+
+  const remaining = actor.system.resources.primary?.value ?? 0;
+  const spellData = actor.system.spells;
+  const costPerLevel = getCostPerLevel(actor);
+
+  let maxLevel = game.settings.get(MODULE_ID, "maxConversionLevel");
+
+  if (!Number.isInteger(maxLevel) || maxLevel <= 0)
+    maxLevel = DEFAULT_MAX_CONVERSION_LEVEL;
+
+  let canConvert = false;
+
+  /* ---- Normal Spell Slots ---- */
+  for (let level = 1; level <= maxLevel; level++) {
+
+    const slot = spellData[`spell${level}`];
+    if (!slot) continue;
+
+    const cost = level * costPerLevel;
+
+    if (slot.value < slot.max && remaining >= cost) {
+      canConvert = true;
+      break;
+    }
+  }
+
+  /* ---- Pact Slot Support ---- */
+  if (!canConvert) {
+    const pact = spellData.pact;
+
+    if (pact && pact.max > 0) {
+
+      const pactLevel = Number.isInteger(pact.level) && pact.level > 0
+        ? pact.level
+        : actor.system.details?.spellLevel ?? 1;
+
+      if (pactLevel <= maxLevel) {
+
+        const pactCost = pactLevel * costPerLevel;
+
+        if (pact.value < pact.max && remaining >= pactCost) {
+          canConvert = true; // for glow
+        }
+      }
+    }
+
+  }
+
+  /* ---- Apply Glow ---- */
+  if (canConvert && glowColor) {
+
+    // Convert HEX (#rrggbb) to RGB values
+    const r = parseInt(glowColor.slice(1, 3), 16);
+    const g = parseInt(glowColor.slice(3, 5), 16);
+    const b = parseInt(glowColor.slice(5, 7), 16);
+
+    resourceRow.style.boxShadow =
+      `0 0 8px 2px rgba(${r}, ${g}, ${b}, 0.8)`;
+
+    resourceRow.style.transition = "box-shadow 0.3s ease";
+
+  } else {
+    resourceRow.style.boxShadow = "";
+  }
+}
+
+ function updateGearGlow(html, actor, glowColor) {
+
+  const gear = html.querySelector(".cantrip-config-gear");
+  if (!gear) return;
+
+  // No glow if conversion disabled
+  if (!isConversionEnabled(actor)) {
+    gear.style.boxShadow = "";
+    return;
+  }
+
+  const resource = actor.system.resources?.primary;
+  if (!resource) return;
+
+  const current = resource.value ?? 0;
+  const max = resource.max ?? 0;
+
+  const costPerLevel = getCostPerLevel(actor);
+  const minCost = costPerLevel; // Level 1 slot minimum cost
+
+  const maxConversions = getMaxConversionsPerLongRest(actor);
+  const used = getConversionsUsed(actor);
+
+  const conversionBlocked =
+    current < minCost ||
+    (maxConversions > 0 && used >= maxConversions);
+
+  if (conversionBlocked) {
+    gear.style.boxShadow = "";
+    return;
+  }
+
+  gear.style.boxShadow = `0 0 6px 2px ${glowColor}`;
 }

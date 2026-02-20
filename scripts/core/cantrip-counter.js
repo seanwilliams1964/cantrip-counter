@@ -11,16 +11,25 @@
  * - Resets on Short & Long Rest
  */
 
-import "./castings.js";
-import "./debug.js";
-import "./dialogs.js";
-import "./favorites.js";
-import "./helpers.js";
-import "./resources.js";
+// Core
 import "./settings.js";
-import "./ui.js";
+import "./hooks.js";
 
-import { debugLog } from "./debug.js";
+// Logic
+import "../logic/cantrip-state.js";
+import "../logic/conversions.js";
+import "../logic/resources.js";
+
+// UI
+import "../ui/dialogs.js";
+import "../ui/ui.js";
+
+// Utilities
+import "../utilities/debug.js";
+import "../utilities/helpers.js";
+import "../utilities/utility.js";
+
+import { debugLog } from "../utilities/debug.js";
 
 Hooks.once("ready", () => {
 
@@ -55,21 +64,3 @@ Hooks.once("ready", () => {
 
   debugLog("=== Cantrip Counter Loaded ===");
 });
-
-
-
-/* -------------------------------------------- */
-/*  TEST HOOKS                                  */
-/* -------------------------------------------- */
-
-// Hooks.on("dnd5e.restCompleted", (actor) => {
-//   debugLog("restCompleted fired for", actor.name);
-// });
-
-// Hooks.on("dnd5e.longRest", (actor) => {
-//   debugLog("longRest fired for", actor.name);
-// });
-
-// Hooks.on("dnd5e.shortRest", (actor) => {
-//   debugLog("shortRest fired for", actor.name);
-// });

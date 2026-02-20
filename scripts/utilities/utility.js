@@ -1,5 +1,3 @@
-import { debugLog } from "./debug.js";
-
 /* -------------------------------------------- */
 /*  SHEET LIFECYCLE UTILITIES                   */
 /* -------------------------------------------- */
@@ -13,7 +11,6 @@ export function getSheetRoot(app) {
   if (!app?.id) return null;
   return document.getElementById(app.id);
 }
-
 
 /**
  * Wait until the next animation frame.
