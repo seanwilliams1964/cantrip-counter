@@ -1,5 +1,9 @@
 # Changelog
 
+[1.4.0] - 2026-02-22 – Github Action for release
+✨ Added
+YML file to handle the creation if a ZIP file for the release.
+
 [1.3.0] - 2026-02-22 – Resource Refactor & Stability Improvements
 ✨ Added
 Automatic migration from primary to secondary resource slot for Cantrip Uses.
