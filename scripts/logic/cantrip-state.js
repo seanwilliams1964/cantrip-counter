@@ -20,7 +20,7 @@ export function getRemainingCantrips(actor) {
 
   if (!actor) return 0;
 
-  const resource = actor.system?.resources?.primary;
+  const resource = actor.system?.resources?.secondary;
 
   if (!resource) return 0;
 
@@ -38,15 +38,15 @@ export async function refreshSingleActorMaximum(actor) {
   const abilityScore = getSpellcastingAbilityScore(actor);
   if (!abilityScore) return;
 
-  const resource = actor.system.resources.primary;
+  const resource = actor.system.resources.secondary;
   if (!resource) return;
 
   const updates = {
-    "system.resources.primary.max": abilityScore
+    "system.resources.secondary.max": abilityScore
   };
 
   if (resource.value > abilityScore)
-    updates["system.resources.primary.value"] = abilityScore;
+    updates["system.resources.secondary.value"] = abilityScore;
 
   await actor.update(updates);
 }

@@ -1,3 +1,4 @@
+import { debugLog } from "../utilities/debug.js";
 import { getSpellcastingAbilityScore } from "../utilities/helpers.js";
 import { 
   getConversionsUsed, 
@@ -11,143 +12,137 @@ import {
 /* -------------------------------------------- */
 
 export async function syncResource(actor) {
-
   if (!actor || actor.type !== "character") return;
 
   const abilityScore = getSpellcastingAbilityScore(actor);
   if (!abilityScore) return;
 
-  const resource = actor.system.resources?.primary;
-  const updates = {};
+  const resource = actor.system.resources?.secondary;
 
-  if (!resource) {
-    updates["system.resources.primary"] = {
-      label: "Cantrip Uses",
-      value: abilityScore,
-      max: abilityScore,
-      sr: true,
-      lr: true
-    };
-  } else {
+  const needsInit =
+    !resource ||
+    resource.label !== "Cantrip Uses" ||
+    typeof resource.max !== "number";
 
-    if (resource.label !== "Cantrip Uses")
-      updates["system.resources.primary.label"] = "Cantrip Uses";
-
-    if (resource.max !== abilityScore)
-      updates["system.resources.primary.max"] = abilityScore;
-
-    if (resource.value == null)
-      updates["system.resources.primary.value"] = abilityScore;
+  if (needsInit) {
+    await actor.update({
+      "system.resources.secondary.label": "Cantrip Uses",
+      "system.resources.secondary.value": abilityScore,
+      "system.resources.secondary.max": abilityScore,
+      "system.resources.secondary.sr": true,
+      "system.resources.secondary.lr": true
+    });
+    return;
   }
 
-  if (Object.keys(updates).length > 0)
-    await actor.update(updates);
+  if (resource.max !== abilityScore) {
+    const newValue = Math.min(resource.value ?? 0, abilityScore);
+
+    await actor.update({
+      "system.resources.secondary.max": abilityScore,
+      "system.resources.secondary.value": newValue
+    });
+  }
 }
 
 /* -------------------------------------------- */
 /*  ABILITY SCORE CHANGE                        */
 /* -------------------------------------------- */
 
-Hooks.on("updateActor", async (actor, changes) => {
+Hooks.on("updateActor", async (actor, updateData, options, userId) => {
 
-  if (!actor.hasPlayerOwner) return;
   if (actor.type !== "character") return;
 
-  const abilityKey = actor.system.attributes.spellcasting;
-  if (!abilityKey) return;
+  // Only proceed if abilities were part of the update payload
+  const abilitiesUpdate = foundry.utils.getProperty(updateData, "system.abilities");
+  if (!abilitiesUpdate) return;
 
-  const abilityChanges = changes?.system?.abilities?.[abilityKey];
-  if (!abilityChanges || abilityChanges.value === undefined) return;
+  const abilityScore = getSpellcastingAbilityScore(actor);
+  if (!abilityScore) return;
 
-  debugLog(`${actor.name}'s spellcasting ability changed.`);
-  await refreshSingleActorMaximum(actor);
+  const resource = actor.system.resources?.secondary;
+  if (!resource || resource.label !== "Cantrip Uses") return;
 
+  const currentMax = resource.max ?? 0;
+  const currentValue = resource.value ?? 0;
+
+  // If max already matches calculated ability, do nothing
+  if (currentMax === abilityScore) return;
+
+  const newValue = Math.min(currentValue, abilityScore);
+
+  await actor.update({
+    "system.resources.secondary.max": abilityScore,
+    "system.resources.secondary.value": newValue
+  });
+
+  debugLog(
+    `Resynced ${actor.name}: max ${currentMax} → ${abilityScore}, value ${currentValue} → ${newValue}`
+  );
 });
 
 /* -------------------------------------------- */
 /*  REST COMPLETED                              */
 /* -------------------------------------------- */
 
-Hooks.on("dnd5e.shortRest", async (actor) => {
+Hooks.on("dnd5e.restCompleted", async (actor, result) => {
 
   if (!actor || actor.type !== "character") return;
 
-  await syncResource(actor);
+  debugLog("dnd5e.restCompleted begin Promise");
+
+  await new Promise(resolve => setTimeout(resolve, 0));
+
+  debugLog("dnd5e.restCompleted exit Promise");
 
   const abilityScore = getSpellcastingAbilityScore(actor);
   if (!abilityScore) return;
 
+  await syncResource(actor);
+
+  const resource = actor.system.resources?.secondary;
+  if (!resource || resource.label !== "Cantrip Uses") return;
+
+  const currentValue = resource.value ?? 0;
+  const currentMax = resource.max ?? abilityScore;
+
+  /* -------------------------------------------- */
+  /*  RESET CONVERSIONS (ALWAYS ON LONG REST)    */
+  /* -------------------------------------------- */
+
+  if (result?.longRest && getConversionsUsed(actor) > 0) {
+    await resetConversionsUsed(actor);
+    debugLog(`Reset conversionsUsed for ${actor.name}`);
+  }
+
+  /* -------------------------------------------- */
+  /*  RESTORE CANTRIPS IF NEEDED                  */
+  /* -------------------------------------------- */
+
+  if (currentValue >= currentMax) return;
+
+  const restoredCount = currentMax - currentValue;
+
+  debugLog(
+    "Current:", currentValue,
+    "Max:", currentMax,
+    "Restoring:", restoredCount
+  );
+
   await actor.update({
-    "system.resources.primary.max": abilityScore,
-    "system.resources.primary.value": abilityScore
+    "system.resources.secondary.value": currentMax
   });
 
   ChatMessage.create({
     speaker: ChatMessage.getSpeaker({ actor }),
     content: `
       <p>
-        <strong>${actor.name}</strong>'s Cantrip Uses
-        have been restored.
-        <br>Total Available: ${abilityScore}
+        <strong>Restored ${restoredCount} Cantrip Uses for ${actor.name}</strong>
+        <br>Cantrip count is now ${currentMax}.
       </p>
     `,
     style: CONST.CHAT_MESSAGE_STYLES.OTHER
   });
-
-  if (actor.sheet?.rendered) actor.sheet.render(true);
-});
-
-/* -------------------------------------------- */
-/*  LONG REST                                   */
-/* -------------------------------------------- */
-
-Hooks.on("dnd5e.longRest", async (actor) => {
-
-  if (!actor || actor.type !== "character") return;
-
-  await syncResource(actor);
-
-  const abilityScore = getSpellcastingAbilityScore(actor);
-  if (!abilityScore) return;
-
-  await actor.update({
-    "system.resources.primary.max": abilityScore,
-    "system.resources.primary.value": abilityScore
-  });
-
-  /* ---------- Conversion Reset Check ---------- */
-
-  let conversionsReset = false;
-
-  if (getConversionsUsed(actor) > 0) {
-    await resetConversionsUsed(actor);
-    conversionsReset = true;
-  }
-
-  /* ---------- Chat Message ---------- */
-
-  let content = `
-    <p>
-      <strong>${actor.name}</strong>'s Cantrip Uses
-      have been fully restored.
-      <br>Total Available: ${abilityScore}
-  `;
-
-  if (conversionsReset) {
-    content += `
-      <br>Conversions have been reset for the new long rest.
-    `;
-  }
-
-  content += `</p>`;
-
-  ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor }),
-    content,
-    style: CONST.CHAT_MESSAGE_STYLES.OTHER
-  });
-
-  if (actor.sheet?.rendered) actor.sheet.render(true);
 });
 
 /* -------------------------------------------- */

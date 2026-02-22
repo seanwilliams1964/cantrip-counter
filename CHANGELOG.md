@@ -1,5 +1,25 @@
 # Changelog
 
+[1.3.0] - 2026-02-22 – Resource Refactor & Stability Improvements
+✨ Added
+Automatic migration from primary to secondary resource slot for Cantrip Uses.
+Schema versioning system to ensure migrations run only once per world.
+Automatic max resync when a character’s spellcasting ability score changes.
+Long rest conversion reset fix — conversionsUsed now properly resets even when cantrip uses are already at maximum.
+Improved rest messaging showing the exact number of Cantrip Uses restored.
+
+🔧 Changed
+Cantrip Uses now stored exclusively in system.resources.secondary.
+Removed preUpdateActor interception logic to eliminate race conditions and unintended update blocking.
+Hardened syncResource() to self-heal improperly initialized actors.
+Improved rest workflow ordering to prevent stale max calculations.
+
+🐛 Fixed
+Conversions not resetting on long rest when cantrip count was already full.
+Resource/UI desync issues caused by dual primary/secondary usage.
+Edge cases involving D&D Beyond imports and newly created actors.
+Potential race conditions during rest resolution.
+
 [1.2.0] - 2026-02-19
 🚀 Added
 Structured module architecture into clearly defined folders:

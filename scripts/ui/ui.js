@@ -29,7 +29,7 @@ Hooks.on("renderActorSheetV2", async (app) => {
   /*  Locate Primary Resource                     */
   /* -------------------------------------------- */
 
-  const primaryResource = root.querySelector('li.resource[data-favorite-id="resources.primary"]');
+  const primaryResource = root.querySelector('li.resource[data-favorite-id="resources.secondary"]');
   if (!primaryResource) return;
 
   debugLog(`Primary resource: ${primaryResource}`);  
@@ -232,7 +232,7 @@ function updateCantripResourceColor(html, actor) {
 
   debugLog("updateCantripResourceColor called for actor:", actor?.name);
 
-  const resource = actor?.system?.resources?.primary;
+  const resource = actor?.system?.resources?.secondary;
   if (!resource) {
     debugLog("No primary resource found.");
     return null;
@@ -245,7 +245,7 @@ function updateCantripResourceColor(html, actor) {
   debugLog("Resource values:", { value, max, percent });
 
   const valueInput = html.querySelector(
-    'li.resource[data-favorite-id="resources.primary"] input.uninput.value'
+    'li.resource[data-favorite-id="resources.secondary"] input.uninput.value'
   );
 
   if (!valueInput) {
@@ -312,7 +312,7 @@ function updateCantripResourceColor(html, actor) {
   if (!conversionEnabled) return;
 
   const resourceRow = html.querySelector(
-    'li.resource[data-favorite-id="resources.primary"]'
+    'li.resource[data-favorite-id="resources.secondary"]'
   );
   if (!resourceRow) return;
 
@@ -324,7 +324,7 @@ function updateCantripResourceColor(html, actor) {
     return;
   }
 
-  const remaining = actor.system.resources.primary?.value ?? 0;
+  const remaining = actor.system.resources.secondary?.value ?? 0;
   const spellData = actor.system.spells;
   const costPerLevel = getCostPerLevel(actor);
 
@@ -400,7 +400,7 @@ function updateCantripResourceColor(html, actor) {
     return;
   }
 
-  const resource = actor.system.resources?.primary;
+  const resource = actor.system.resources?.secondary;
   if (!resource) return;
 
   const current = resource.value ?? 0;

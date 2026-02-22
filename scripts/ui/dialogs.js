@@ -204,7 +204,7 @@ class ConversionApp extends ApplicationV2 {
       `;
     }
 
-    const remainingCantrips = this.actor.system.resources.primary?.value ?? 0;
+    const remainingCantrips = this.actor.system.resources.secondary?.value ?? 0;
     const spellData = this.actor.system.spells;
     const maxLevel = getMaxConversionLevel(this.actor);
     const costPerLevel = getCostPerLevel(this.actor);
@@ -316,7 +316,7 @@ class ConversionApp extends ApplicationV2 {
     let cost;
     let updates = {};
 
-    const currentCantrips = actor.system.resources.primary.value;
+    const currentCantrips = actor.system.resources.secondary.value;
 
     if (type === "spell") {
       cost = level * costPerLevel;
@@ -329,7 +329,7 @@ class ConversionApp extends ApplicationV2 {
       updates["system.spells.pact.value"] = pact.value + 1;
     }
 
-    updates["system.resources.primary.value"] = currentCantrips - cost;
+    updates["system.resources.secondary.value"] = currentCantrips - cost;
 
     await actor.update(updates);
     await incrementConversionsUsed(actor);
@@ -345,7 +345,7 @@ class ConversionApp extends ApplicationV2 {
           <br>
           Cost: ${cost} cantrips
           <br>
-          Remaining: ${remaining}/${actor.system.resources.primary.max}
+          Remaining: ${remaining}/${actor.system.resources.secondary.max}
         </p>
       `,
       type: CONST.CHAT_MESSAGE_STYLES.OTHER

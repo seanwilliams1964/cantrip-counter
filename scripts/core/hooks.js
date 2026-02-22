@@ -2,45 +2,6 @@ import { debugLog } from "../utilities/debug.js";
 import { hasRemainingCantrips } from '../logic/cantrip-state.js';
 import { syncResource } from "../logic/resources.js";
 
-Hooks.on("preUpdateActor", (actor, updateData, options, userId) => {
-
-  if (actor.type !== "character") return;
-
-  debugLog("Firing preUpdateActor hook for actor:", actor.name, " with updateData:", updateData);
-
-  const newValue = foundry.utils.getProperty(updateData, "system.resources.primary.value");
-  if (newValue === undefined) return;
-
-  const max = actor.system.resources.primary?.max ?? 0;
-
-  /* GM Restriction */
-
-  if (!game.user.isGM) {
-    
-    // Force sheet refresh since we are blocking change
-    requestActorSheetRefresh(actor);
-
-    return false;
-  }
-
-  /* Clamp Above Max */
-  if (newValue > max) {
-
-    ui.notifications.warn(`Value cannot exceed maximum of ${max}. See gobal settings to add bonus cantrips.`);
-
-    debugLog(`Clamping cantrip value from ${newValue} to ${max}`);
-
-    foundry.utils.setProperty(
-      updateData,
-      "system.resources.primary.value",
-      max
-    );
-
-    // Force refresh since final value equals existing value
-    requestActorSheetRefresh(actor);
-  }
-});
-
 Hooks.on("updateActor", (actor, changed) => {
 
   debugLog("Hook on updateActor for actor:", actor.name, " with changed data:", changed);
@@ -48,15 +9,15 @@ Hooks.on("updateActor", (actor, changed) => {
 
   if (actor.type !== "character") return;
 
-  const newValue = foundry.utils.getProperty(changed, "system.resources.primary.value");
+  const newValue = foundry.utils.getProperty(changed, "system.resources.secondary.value");
   if (newValue === undefined) return;
 
   debugLog("newValue", newValue);
 
-  const max = actor.system.resources.primary?.max ?? 0;
+  const max = actor.system.resources.secondary?.max ?? 0;
 
   // If value equals max (meaning it was clamped), force sheet refresh
-  if (actor.system.resources.primary.value === max) {
+  if (actor.system.resources.secondary.value === max) {
 
     debugLog("Forcing sheet re-render to sync clamped value.");
 
@@ -124,7 +85,7 @@ Hooks.on("dnd5e.preUseItem", async (item) => {
 
   await syncResource(actor);
 
-  const resource = actor.system.resources.primary;
+  const resource = actor.system.resources.secondary;
   const remaining = resource.value ?? 0;
 
   if (remaining <= 0) {
@@ -154,7 +115,7 @@ Hooks.on("createChatMessage", async (message) => {
 
   await syncResource(actor);
 
-  const resource = actor.system.resources.primary;
+  const resource = actor.system.resources.secondary;
   const current = resource.value ?? 0;
   const max = resource.max ?? 0;
 
@@ -163,7 +124,7 @@ Hooks.on("createChatMessage", async (message) => {
   const newValue = Math.max(0, current - 1);
 
   await actor.update({
-    "system.resources.primary.value": newValue
+    "system.resources.secondary.value": newValue
   });
 
   ChatMessage.create({
@@ -209,6 +170,15 @@ Hooks.on("updateActor", async (actor, changes, options) => {
     { cantripCounterRestore: true }
   );
 
+});
+
+Hooks.on("renderActorSheet5eCharacter", (app, html) => {
+  const secondaryInput = html.find(
+    'input[name="system.resources.secondary.label"]'
+  );
+  if (secondaryInput.val() === "Cantrip Uses") {
+    secondaryInput.prop("disabled", true);
+  }
 });
 
 function requestActorSheetRefresh(actor) {

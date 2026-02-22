@@ -3,6 +3,13 @@ export const DEFAULT_MAX_CONVERSION_LEVEL = 9;
 
 Hooks.once("init", () => {
 
+  game.settings.register(MODULE_ID, "schemaVersion", {
+    scope: "world",
+    config: false,
+    type: Number,
+    default: 0
+  });
+
   game.settings.register(MODULE_ID, "debug", {
     name: "Enable Debug Logging",
     hint: "Logs Cantrip Counter debug messages to the browser console.",
