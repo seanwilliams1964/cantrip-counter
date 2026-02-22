@@ -1,8 +1,9 @@
-name: Build and Attach Release ZIP
+name: Build & Publish Release
 
 on:
-  release:
-    types: [published]
+  push:
+    tags:
+      - "v*"
 
 permissions:
   contents: write
@@ -15,24 +16,33 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Get version from tag
+      - name: Extract version from tag
         id: get_version
         run: echo "VERSION=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
 
-      - name: Create build directory
+      - name: Validate module.json version matches tag
         run: |
-          mkdir cantrip-counter
-          rsync -av --exclude=".git" \
-                    --exclude=".github" \
-                    --exclude="node_modules" \
-                    --exclude="*.zip" \
-                    ./ cantrip-counter/
+          TAG_VERSION="${{ steps.get_version.outputs.VERSION }}"
+          MODULE_VERSION=$(jq -r .version module.json)
 
-      - name: Create ZIP archive
+          if [ "$TAG_VERSION" != "v$MODULE_VERSION" ]; then
+            echo "Tag version ($TAG_VERSION) does not match module.json version ($MODULE_VERSION)"
+            exit 1
+          fi
+
+      - name: Create release ZIP
         run: |
-          zip -r cantrip-counter-${{ steps.get_version.outputs.VERSION }}.zip cantrip-counter
+          zip -r cantrip-counter.zip . \
+            -x "*.git*" \
+            -x "*.github*" \
+            -x "node_modules/*" \
+            -x "*.zip"
 
-      - name: Upload ZIP to Release
+      - name: Create GitHub Release and upload ZIP
         uses: softprops/action-gh-release@v2
         with:
-          files: cantrip-counter-${{ steps.get_version.outputs.VERSION }}.zip
+          tag_name: ${{ steps.get_version.outputs.VERSION }}
+          name: ${{ steps.get_version.outputs.VERSION }}
+          files: cantrip-counter.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

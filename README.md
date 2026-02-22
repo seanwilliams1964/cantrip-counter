@@ -259,5 +259,11 @@ It provides:
 
 Enjoy your enhanced spellcasting system.
 
+Release Stuff
+git add .
+git commit -m "Release v1.4.0"
+git tag v1.4.0
+git push origin main
+git push origin v1.4.0
 
 
