@@ -37,7 +37,7 @@
   ]
   },
   "manifest": "https://raw.githubusercontent.com/seanwilliams1964/cantrip-counter/main/module.json",
-  "download": "https://github.com/seanwilliams1964/cantrip-counter/releases/latest/download/cantrip-counter.zip",
+  "download": "https://github.com/seanwilliams1964/cantrip-counter/releases/latest/download/cantrip-counter-{{version}}.zip",
   "license": "MIT",
   "readme": "https://github.com/seanwilliams1964/cantrip-counter/blob/main/README.md",
   "bugs": "https://github.com/seanwilliams1964/cantrip-counter/issues"
