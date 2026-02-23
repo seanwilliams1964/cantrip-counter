@@ -3,7 +3,8 @@ import { debugLog } from "../utilities/debug.js";
 import { getActorSetting, getSpellcastingAbilityScore } from "../utilities/helpers.js";
 
 export function getConversionsUsed(actor) {
-  return getActorSetting(actor, "conversionsUsed", "conversionsUsed");
+  if (!actor) return 0;
+  return getActorSetting(MODULE_ID, "conversionsUsed") ?? 0;
 }
 
 export async function incrementConversionsUsed(actor) {
