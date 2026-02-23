@@ -4,7 +4,7 @@ import { getActorSetting, getSpellcastingAbilityScore } from "../utilities/helpe
 
 export function getConversionsUsed(actor) {
   if (!actor) return 0;
-  return getActorSetting(MODULE_ID, "conversionsUsed") ?? 0;
+  return getActorSetting(MODULE_ID, "conversionsUsed", "NOT-USED") ?? 0;
 }
 
 export async function incrementConversionsUsed(actor) {
