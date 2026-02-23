@@ -1,5 +1,36 @@
 # Changelog
 
+## [2.0.0] - 2026-02-22 – Conversion System Refactor & Internal Resource Handling
+
+### Added
+
+* Reliable decrementing of Daily Conversions when a spell slot conversion occurs.
+* Utility-based sheet lifecycle helpers for safe post-render DOM interaction.
+* Defensive selector handling to support multiple sheet structures.
+* Improved conversion cap enforcement logic.
+
+### Changed
+
+* Refactored conversion workflow to properly invoke consumption logic.
+* Replaced jQuery-based sheet manipulation with utility-driven DOM querying.
+* Daily Conversions now tracked internally while hidden from the character sheet UI.
+* Standardized usage of `GLOBAL_SETTING` and `ACTOR_FLAG` across logic layers.
+* Improved sheet render handling to prevent race conditions with late-injected content.
+
+### Fixed
+
+* Resolved issue where Daily Conversions (tertiary resource) did not decrement.
+* Corrected conversion cap logic when remaining conversions reached zero.
+* Removed unused imports and orphaned exports.
+* Eliminated unused flag constants.
+* Addressed potential resource synchronization inconsistencies.
+
+### Removed
+
+* Unused `FLAG_CONVERSIONS` constant.
+* Redundant resource display logic.
+* jQuery dependency for sheet DOM manipulation.
+
 [1.4.0] - 2026-02-22 – Github Action for release
 ✨ Added
 YML file to handle the creation if a ZIP file for the release.

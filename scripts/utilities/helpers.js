@@ -1,4 +1,4 @@
-import { MODULE_ID } from "../core/settings.js";
+import { MODULE_ID, GLOBAL_SETTING } from "../utilities/constants.js";
 import { debugLog } from "./debug.js";  
 import { openConversionDialog } from "../ui/dialogs.js";
 
@@ -11,7 +11,7 @@ export function getSpellcastingAbilityScore(actor) {
   if (!ability) return null;
 
   const baseScore = ability.value ?? 0;
-  const bonus = game.settings.get(MODULE_ID, "bonusCantrips") ?? 0;
+  const bonus = game.settings.get(MODULE_ID, GLOBAL_SETTING.bonusCantrips) ?? 0;
 
   return baseScore + bonus;
 }

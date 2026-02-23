@@ -1,36 +1,22 @@
 /**
- * Cantrip Counter - Flag + Resource Based
+ * Cantrip Counter - Resource Based
  * Foundry VTT v13
  * DnD5e 5.2.5
- *
- * - No item required
- * - Uses actor.system.resources.secondary
- * - Max = Spellcasting Ability Score
- * - Hard blocks at 0
- * - Decrements using createChatMessage (5.2 compatible)
- * - Resets on Short & Long Rest
  */
 
 // Core
+import { 
+  MODULE_ID, 
+  CURRENT_SCHEMA_VERSION, 
+  GLOBAL_SETTING, 
+  RESOURCE_LABEL, 
+  ACTOR_FLAG 
+} from "../utilities/constants.js";
+import { debugLog } from "../utilities/debug.js";
+import { getMaxConversionsPerLongRest } from "../logic/conversions.js";
 import "./settings.js";
 import "./hooks.js";
-
-// Logic
-import "../logic/cantrip-state.js";
-import "../logic/conversions.js";
-import "../logic/resources.js";
-
-// UI
-import "../ui/dialogs.js";
 import "../ui/ui.js";
-
-// Utilities
-import "../utilities/debug.js";
-import "../utilities/helpers.js";
-import "../utilities/utility.js";
-import { debugLog } from "../utilities/debug.js";
-
-const CURRENT_SCHEMA_VERSION = 2;
 
 Hooks.once("ready", async () => {
 
@@ -42,7 +28,6 @@ Hooks.once("ready", async () => {
   const requiredModule = game.modules.get(requiredModuleId);
 
   if (!requiredModule || !requiredModule.active) {
-
     if (game.user.isGM) {
       new Dialog({
         title: "Cantrip Counter – Missing Dependency",
@@ -66,44 +51,108 @@ Hooks.once("ready", async () => {
   /* Migration (GM Only)                          */
   /* -------------------------------------------- */
 
-  if (game.user.isGM) {
+  if (!game.user.isGM) {
+    debugLog("=== Cantrip Counter Loaded ===");
+    return;
+  }
 
-    const storedVersion = game.settings.get(MODULE_ID, "schemaVersion") ?? 0;
+  const storedVersion = game.settings.get(MODULE_ID, GLOBAL_SETTING.schemaVersion) ?? 0;
 
-    if (storedVersion < CURRENT_SCHEMA_VERSION) {
+  if (storedVersion >= CURRENT_SCHEMA_VERSION) {
+    debugLog("=== Cantrip Counter Loaded ===");
+    return;
+  }
 
-      debugLog("Running migration to schema v2...");
+  debugLog(`Running migration to schema v${CURRENT_SCHEMA_VERSION}...`);
 
-      for (const actor of game.actors) {
-        if (actor.type !== "character") continue;
+  for (const actor of game.actors) {
+    if (actor.type !== "character") continue;
 
-        const primary = actor.system.resources?.primary;
+    /* -------------------------------------------- */
+    /* v2 Migration: Primary → Secondary            */
+    /* -------------------------------------------- */
 
-        if (primary?.label === "Cantrip Uses") {
+    const primary = actor.system.resources?.primary;
 
-          await actor.update({
-            "system.resources.secondary.label": "Cantrip Uses",
-            "system.resources.secondary.value": primary.value ?? 0,
-            "system.resources.secondary.max": primary.max ?? 0,
-            "system.resources.secondary.sr": true,
-            "system.resources.secondary.lr": true,
-            "system.resources.primary.label": "",
-            "system.resources.primary.value": 0,
-            "system.resources.primary.max": 0,
-            "system.resources.primary.sr": false,
-            "system.resources.primary.lr": false
-          });
+    if (primary?.label === RESOURCE_LABEL.cantripUses) {
 
-          debugLog(`Migrated actor ${actor.name}`);
-        }
+      await actor.update({
+        "system.resources.secondary.label": RESOURCE_LABEL.cantripUses,
+        "system.resources.secondary.value": primary.value ?? 0,
+        "system.resources.secondary.max": primary.max ?? 0,
+        "system.resources.secondary.sr": true,
+        "system.resources.secondary.lr": true,
+        "system.resources.primary.label": "",
+        "system.resources.primary.value": 0,
+        "system.resources.primary.max": 0,
+        "system.resources.primary.sr": false,
+        "system.resources.primary.lr": false
+      });
+
+      debugLog(`Migrated ${actor.name} primary → secondary`);
+    }
+
+    /* -------------------------------------------- */
+    /* v3 Migration: Flag → Tertiary Resource       */
+    /* -------------------------------------------- */
+
+    const used = actor.getFlag(MODULE_ID, ACTOR_FLAG.conversionsUsed);
+
+    if (used !== undefined && used !== null) {
+
+      const max = getMaxConversionsPerLongRest(actor) ?? 0;
+
+      // If unlimited or invalid, just remove flag
+      if (!max || max <= 0) {
+        await actor.unsetFlag(MODULE_ID, ACTOR_FLAG.conversionsUsed);
+        continue;
       }
 
-      await game.settings.set(MODULE_ID, "schemaVersion", CURRENT_SCHEMA_VERSION);
+      const remaining = Math.max(0, max - used);
 
-      debugLog("Migration complete.");
+      await actor.update({
+        "system.resources.tertiary.label": RESOURCE_LABEL.dailyConversions,
+        "system.resources.tertiary.value": remaining,
+        "system.resources.tertiary.max": max,
+        "system.resources.tertiary.sr": false,
+        "system.resources.tertiary.lr": true
+      });
+
+      await actor.unsetFlag(MODULE_ID, ACTOR_FLAG.conversionsUsed);
+
+      debugLog(`Migrated ${actor.name}: ${used} used → ${remaining}/${max} remaining`);
+    }
+
+    /* -------------------------------------------- */
+    /* Ensure Tertiary Exists For Enabled Actors    */
+    /* -------------------------------------------- */
+
+    const tertiary = actor.system.resources?.tertiary;
+
+    if (!tertiary || tertiary.label !== RESOURCE_LABEL.dailyConversions) {
+
+      const max = getMaxConversionsPerLongRest(actor) ?? 0;
+
+      if (max > 0) {
+        await actor.update({
+          "system.resources.tertiary.label": RESOURCE_LABEL.dailyConversions,
+          "system.resources.tertiary.value": max,
+          "system.resources.tertiary.max": max,
+          "system.resources.tertiary.sr": false,
+          "system.resources.tertiary.lr": true
+        });
+
+        debugLog(`Initialized tertiary resource for ${actor.name}`);
+      }
     }
   }
 
+  await game.settings.set(
+    MODULE_ID,
+    GLOBAL_SETTING.schemaVersion,
+    CURRENT_SCHEMA_VERSION
+  );
+
+  debugLog(`Migration to schema v${CURRENT_SCHEMA_VERSION} complete.`);
   debugLog("=== Cantrip Counter Loaded ===");
 });
-

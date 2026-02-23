@@ -1,7 +1,8 @@
-import { MODULE_ID } from "../core/settings.js";
+import { MODULE_ID, ACTOR_FLAG, GLOBAL_SETTING } from "../utilities/constants.js";
 import { debugLog } from "../utilities/debug.js";
-import { getConversionsUsed, incrementConversionsUsed } from "../logic/cantrip-state.js";
-import { getCostPerLevel, getMaxConversionLevel, getMaxConversionsPerLongRest, hasReachedConversionCap } from "../logic/conversions.js";
+import { getCostPerLevel, getMaxConversionLevel, hasReachedConversionCap } from "../logic/conversions.js";
+import { getActorSetting } from "../utilities/helpers.js";
+import { getRemainingConversions, getMaxConversions, consumeConversion } from "../logic/cantrip-state.js";
 
 const { ApplicationV2 } = foundry.applications.api;
 
@@ -41,12 +42,11 @@ class ActorConfigApp extends ApplicationV2 {
    * @returns {Promise<string|HTMLElement>} The rendered HTML or element
    * @protected
    */
-  async _renderHTML(context, options) {
-    const actor = this.actor;
-    const overrideEnabled = actor.getFlag(MODULE_ID, "overrideEnabled") ?? false;
-    const costPerLevel = actor.getFlag(MODULE_ID, "costPerLevel") ?? "";
-    const maxConversionLevel = actor.getFlag(MODULE_ID, "maxConversionLevel") ?? "";
-    const maxConversionsPerLongRest = actor.getFlag(MODULE_ID, "maxConversionsPerLongRest") ?? "";
+  async _renderHTML(context, options) {    
+    const overrideEnabled = getActorSetting(MODULE_ID, ACTOR_FLAG.overrideEnabled, GLOBAL_SETTING.overrideEnabled);
+    const costPerLevel = getActorSetting(MODULE_ID, ACTOR_FLAG.costPerLevel, GLOBAL_SETTING.costPerLevel);
+    const maxConversionLevel = getActorSetting(MODULE_ID, ACTOR_FLAG.maxConversionLevel, GLOBAL_SETTING.maxConversionLevel);
+    const maxConversionsPerLongRest = getActorSetting(MODULE_ID, ACTOR_FLAG.maxConversionsPerLongRest, GLOBAL_SETTING.maxConversionsPerLongRest) ?? "";
 
     // Return raw HTML string (simplest approach)
     return `
@@ -122,10 +122,10 @@ class ActorConfigApp extends ApplicationV2 {
         content: `<p>This will remove all custom conversion settings for this actor. Continue?</p>`
       });
       if (!confirmed) return;
-      await app.actor.unsetFlag(MODULE_ID, "overrideEnabled");
-      await app.actor.unsetFlag(MODULE_ID, "costPerLevel");
-      await app.actor.unsetFlag(MODULE_ID, "maxConversionLevel");
-      await app.actor.unsetFlag(MODULE_ID, "maxConversionsPerLongRest");
+      await app.actor.unsetFlag(MODULE_ID, ACTOR_FLAG.overrideEnabled);
+      await app.actor.unsetFlag(MODULE_ID, ACTOR_FLAG.costPerLevel);
+      await app.actor.unsetFlag(MODULE_ID, ACTOR_FLAG.maxConversionLevel);
+      await app.actor.unsetFlag(MODULE_ID, ACTOR_FLAG.maxConversionsPerLongRest);
       if (checkbox) checkbox.checked = false;
       const numericFields = form.querySelectorAll('input[type="number"]');
       numericFields.forEach(input => {
@@ -135,10 +135,10 @@ class ActorConfigApp extends ApplicationV2 {
       app.close();
       return;
     }
-    await app.actor.setFlag(MODULE_ID, "overrideEnabled", true);
-    await app.actor.setFlag(MODULE_ID, "costPerLevel", Number(formData.get("costPerLevel")) || 0);
-    await app.actor.setFlag(MODULE_ID, "maxConversionLevel", Number(formData.get("maxConversionLevel")) || 0);
-    await app.actor.setFlag(MODULE_ID, "maxConversionsPerLongRest", Number(formData.get("maxConversionsPerLongRest")) || 0);
+    await app.actor.setFlag(MODULE_ID, ACTOR_FLAG.overrideEnabled, true);
+    await app.actor.setFlag(MODULE_ID, ACTOR_FLAG.costPerLevel, Number(formData.get("costPerLevel")) || 0);
+    await app.actor.setFlag(MODULE_ID, ACTOR_FLAG.maxConversionLevel, Number(formData.get("maxConversionLevel")) || 0);
+    await app.actor.setFlag(MODULE_ID, ACTOR_FLAG.maxConversionsPerLongRest, Number(formData.get("maxConversionsPerLongRest")) || 0);
     app.close();
   }
 
@@ -147,7 +147,7 @@ class ActorConfigApp extends ApplicationV2 {
     super._onRender?.(context, options);
 
     // Force initial checkbox + disabled state (safety net)
-    const overrideEnabled = this.actor.getFlag(MODULE_ID, "overrideEnabled") ?? false;
+    const overrideEnabled = this.actor.getFlag(MODULE_ID, ACTOR_FLAG.overrideEnabled) ?? false;
     const checkbox = this.element.querySelector('input[name="overrideEnabled"]');
     if (checkbox) {
       checkbox.checked = overrideEnabled;
@@ -197,10 +197,14 @@ class ConversionApp extends ApplicationV2 {
    * @protected
    */
   async _renderHTML(context, options) {
+
+    const remaining = getRemainingConversions(this.actor);
+    const max = getMaxConversions(this.actor);
+
     if (hasReachedConversionCap(this.actor)) {
       return `
         <p><strong>Conversion Limit Reached</strong></p>
-        <p>You have used ${getConversionsUsed(this.actor)}/${getMaxConversionsPerLongRest(this.actor)} conversions this long rest.</p>
+        <p>You have ${remaining}/${max} conversions remaining this long rest.</p>
       `;
     }
 
@@ -332,7 +336,7 @@ class ConversionApp extends ApplicationV2 {
     updates["system.resources.secondary.value"] = currentCantrips - cost;
 
     await actor.update(updates);
-    await incrementConversionsUsed(actor);
+    await consumeConversion(actor);
 
     // Chat message
     const remaining = currentCantrips - cost;
@@ -399,11 +403,11 @@ class ActorColorConfigApp extends ApplicationV2 {
   const actor = this.actor;
 
   const templateData = {
-    glowLow: actor.getFlag(MODULE_ID, "glowLow") ?? "#ff0000",
-    glowMedium: actor.getFlag(MODULE_ID, "glowMedium") ?? "#ffff00",
-    glowHigh: actor.getFlag(MODULE_ID, "glowHigh") ?? "#00ff00",
-    thresholdLow: actor.getFlag(MODULE_ID, "thresholdLow") ?? 25,
-    thresholdMedium: actor.getFlag(MODULE_ID, "thresholdMedium") ?? 50
+    glowLow: actor.getFlag(MODULE_ID, ACTOR_FLAG.glowLow) ?? "#ff0000",
+    glowMedium: actor.getFlag(MODULE_ID, ACTOR_FLAG.glowMedium) ?? "#ffff00",
+    glowHigh: actor.getFlag(MODULE_ID, ACTOR_FLAG.glowHigh) ?? "#00ff00",
+    thresholdLow: actor.getFlag(MODULE_ID, ACTOR_FLAG.thresholdLow) ?? 25,
+    thresholdMedium: actor.getFlag(MODULE_ID, ACTOR_FLAG.thresholdMedium) ?? 50
   };
 
   return await foundry.applications.handlebars.renderTemplate(
@@ -554,11 +558,11 @@ class ResetConfirmationApp extends ApplicationV2 {
 
     debugLog("Reset confirmed — clearing actor flags");
 
-    await actor.unsetFlag(MODULE_ID, "thresholdLow");
-    await actor.unsetFlag(MODULE_ID, "thresholdMedium");
-    await actor.unsetFlag(MODULE_ID, "glowLow");
-    await actor.unsetFlag(MODULE_ID, "glowMedium");
-    await actor.unsetFlag(MODULE_ID, "glowHigh");
+    await actor.unsetFlag(MODULE_ID, ACTOR_FLAG.thresholdLow);
+    await actor.unsetFlag(MODULE_ID, ACTOR_FLAG.thresholdMedium);
+    await actor.unsetFlag(MODULE_ID, ACTOR_FLAG.glowLow);
+    await actor.unsetFlag(MODULE_ID, ACTOR_FLAG.glowMedium);
+    await actor.unsetFlag(MODULE_ID, ACTOR_FLAG.glowHigh);
 
     Hooks.call("cantripCounterRefreshUI");
 

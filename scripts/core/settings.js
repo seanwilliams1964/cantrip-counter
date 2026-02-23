@@ -1,16 +1,15 @@
-export const MODULE_ID = "cantrip-counter";
-export const DEFAULT_MAX_CONVERSION_LEVEL = 9;
+import { GLOBAL_SETTING, MODULE_ID } from "../utilities/constants.js";
 
 Hooks.once("init", () => {
 
-  game.settings.register(MODULE_ID, "schemaVersion", {
+  game.settings.register(MODULE_ID, GLOBAL_SETTING.schemaVersion, {
     scope: "world",
     config: false,
     type: Number,
     default: 0
   });
 
-  game.settings.register(MODULE_ID, "debug", {
+  game.settings.register(MODULE_ID, GLOBAL_SETTING.debugMode, {
     name: "Enable Debug Logging",
     hint: "Logs Cantrip Counter debug messages to the browser console.",
     scope: "world",
@@ -19,7 +18,7 @@ Hooks.once("init", () => {
     default: false
   });
 
-  game.settings.register(MODULE_ID, "cantripIcon", {
+  game.settings.register(MODULE_ID, GLOBAL_SETTING.cantripIcon, {
     name: "Cantrip Counter Icon",
     hint: "Path to a custom icon that will appear on the character sheet.",
     scope: "world",
@@ -30,7 +29,7 @@ Hooks.once("init", () => {
     filePicker: "image"
   });
 
-  game.settings.register(MODULE_ID, "bonusCantrips", {
+  game.settings.register(MODULE_ID, GLOBAL_SETTING.bonusCantrips, {
     name: "Bonus Cantrip Uses",
     hint: "Additional cantrip uses added to the spellcasting ability score.",
     scope: "world",
@@ -40,7 +39,7 @@ Hooks.once("init", () => {
     default: 0
   });
 
-  game.settings.register(MODULE_ID, "enableConversion", {
+  game.settings.register(MODULE_ID, GLOBAL_SETTING.enableConversion, {
     name: "Enable Spell Slot Conversion",
     hint: "Allow players to convert cantrips into spell slots.",
     scope: "world",
@@ -50,7 +49,7 @@ Hooks.once("init", () => {
     default: true
   });
 
-  game.settings.register(MODULE_ID, "costPerLevel", {
+  game.settings.register(MODULE_ID, GLOBAL_SETTING.costPerLevel, {
     name: "Cantrip Cost Per Spell Level",
     hint: "Number of cantrips required per spell level when restoring a slot.",
     scope: "world",
@@ -60,7 +59,7 @@ Hooks.once("init", () => {
     default: 3
   });
 
-  game.settings.register(MODULE_ID, "maxConversionLevel", {
+  game.settings.register(MODULE_ID, GLOBAL_SETTING.maxConversionLevel, {
     name: "Maximum Convertible Spell Level",
     hint: "Highest spell level that can be restored using cantrip conversion.",
     scope: "world",
@@ -70,7 +69,7 @@ Hooks.once("init", () => {
     default: 9
   });
 
-  game.settings.register(MODULE_ID, "maxConversionsPerLongRest", {
+  game.settings.register(MODULE_ID, GLOBAL_SETTING.maxConversionsPerLongRest, {
     name: "Maximum Conversions Per Long Rest",
     hint: "Maximum number of conversions allowed per long rest.",
     scope: "world",
@@ -81,7 +80,7 @@ Hooks.once("init", () => {
   });
 
   // Low Threshold Color
-  game.settings.register("cantrip-counter", "glowLow", {
+  game.settings.register(MODULE_ID, GLOBAL_SETTING.glowLow, {
     name: "Low Resource Color",
     hint: "Color used when cantrip uses are at or below 25%.",
     scope: "world",
@@ -93,7 +92,7 @@ Hooks.once("init", () => {
   });
 
   // Medium Threshold Color
-   game.settings.register("cantrip-counter", "glowMedium", {
+   game.settings.register(MODULE_ID, GLOBAL_SETTING.glowMedium, {
     name: "Medium Resource Color",
     hint: "Color used when cantrip uses are between 25% and 50%.",
     scope: "world",
@@ -105,7 +104,7 @@ Hooks.once("init", () => {
   });
 
   // High Threshold Color
-  game.settings.register("cantrip-counter", "glowHigh", {
+  game.settings.register(MODULE_ID, GLOBAL_SETTING.glowHigh, {
     name: "High Resource Color",
     hint: "Color used when cantrip uses are above 50%.",
     scope: "world",
@@ -117,7 +116,7 @@ Hooks.once("init", () => {
   });
 
   // Low Threshold Percentage
-  game.settings.register("cantrip-counter", "thresholdLow", {
+  game.settings.register(MODULE_ID, GLOBAL_SETTING.thresholdLow, {
     name: "Low Threshold (%)",
     hint: "Percentage at or below which the resource is considered Low.",
     scope: "world",
@@ -131,7 +130,7 @@ Hooks.once("init", () => {
       step: 1
     },
     onChange: (value) => {
-      const medium = game.settings.get("cantrip-counter", "thresholdMedium");
+      const medium = game.settings.get(MODULE_ID, GLOBAL_SETTING.thresholdMedium);
       if (value >= medium) {
         ui.notifications.warn("Low threshold must be less than Medium threshold.");
       }
@@ -140,7 +139,7 @@ Hooks.once("init", () => {
   });
 
   // Medium Threshold Percentage
-  game.settings.register("cantrip-counter", "thresholdMedium", {
+  game.settings.register(MODULE_ID, GLOBAL_SETTING.thresholdMedium, {
     name: "Medium Threshold (%)",
     hint: "Percentage at or below which the resource is considered Medium.",
     scope: "world",
@@ -154,7 +153,7 @@ Hooks.once("init", () => {
       step: 1
     },
     onChange: (value) => {
-      const low = game.settings.get("cantrip-counter", "thresholdLow");
+      const low = game.settings.get(MODULE_ID, GLOBAL_SETTING.thresholdLow);
       if (value <= low) {
         ui.notifications.warn("Medium threshold must be greater than Low threshold.");
       }

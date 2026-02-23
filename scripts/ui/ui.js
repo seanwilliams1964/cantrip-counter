@@ -1,9 +1,18 @@
-import { MODULE_ID, DEFAULT_MAX_CONVERSION_LEVEL } from "../core/settings.js";
-import { openConversionDialog, openActorConfigDialog, openActorColorConfig } from "./dialogs.js";
+import { 
+  MODULE_ID, 
+  DEFAULT_MAX_CONVERSION_LEVEL, 
+  ACTOR_FLAG, 
+  GLOBAL_SETTING 
+} from "../utilities/constants.js";
+import { 
+  openConversionDialog, 
+  openActorConfigDialog, 
+  openActorColorConfig 
+} from "./dialogs.js";
 import { debugLog } from "../utilities/debug.js";
-import { getRenderedSheetRoot } from "../utilities/utility.js";
+import { getRenderedSheetRoot, querySheetAll  } from "../utilities/utility.js";
 import { getActorSetting } from "../utilities/helpers.js";
-import { getConversionsUsed } from "../logic/cantrip-state.js";
+import { getRemainingConversions } from "../logic/cantrip-state.js";
 import {
   isConversionEnabled,
   getMaxConversionsPerLongRest,
@@ -35,6 +44,20 @@ Hooks.on("renderActorSheetV2", async (app) => {
   debugLog(`Primary resource: ${primaryResource}`);  
 
   applyCantripLogic(app, root, primaryResource);
+
+  // Only hide if this is your tracked resource
+  const tertiaryLabel = actor.system?.resources?.tertiary?.label;
+  if (tertiaryLabel !== "Daily Conversions") return;
+
+  debugLog(`Tertiary label: ${tertiaryLabel}`); 
+
+  const tertiaryResource = root.querySelector('li.resource[data-favorite-id="resources.tertiary"]');
+  if (!tertiaryResource) return;
+
+  debugLog(`Tertiary resource: ${tertiaryResource}`); 
+
+  tertiaryResource.style.display = "none"; 
+
 });
 
 Hooks.on("cantripCounterRefreshUI", () => {
@@ -254,13 +277,13 @@ function updateCantripResourceColor(html, actor) {
   }
 
   // 🔹 Pull colors (actor override first)
-  const glowLow = getActorSetting(actor, "glowLow", "glowLow");
-  const glowMedium = getActorSetting(actor, "glowMedium", "glowMedium");
-  const glowHigh = getActorSetting(actor, "glowHigh", "glowHigh");
+  const glowLow = getActorSetting(actor, ACTOR_FLAG.glowLow, GLOBAL_SETTING.glowLow);
+  const glowMedium = getActorSetting(actor, ACTOR_FLAG.glowMedium, GLOBAL_SETTING.glowMedium);
+  const glowHigh = getActorSetting(actor, ACTOR_FLAG.glowHigh, GLOBAL_SETTING.glowHigh);
 
   // 🔹 Pull thresholds (actor override first)
-  let thresholdLow = Number(getActorSetting(actor, "thresholdLow", "thresholdLow"));
-  let thresholdMedium = Number(getActorSetting(actor, "thresholdMedium", "thresholdMedium"));
+  let thresholdLow = Number(getActorSetting(actor, ACTOR_FLAG.thresholdLow, GLOBAL_SETTING.thresholdLow));
+  let thresholdMedium = Number(getActorSetting(actor, ACTOR_FLAG.thresholdMedium, GLOBAL_SETTING.thresholdMedium));
 
   debugLog("Retrieved actor color settings:", {
     glowLow,
@@ -317,9 +340,9 @@ function updateCantripResourceColor(html, actor) {
   if (!resourceRow) return;
 
   const maxConversions = getMaxConversionsPerLongRest(actor);
-  const used = getConversionsUsed(actor);
+  const conversionsRemaining = getRemainingConversions(actor);
 
-  if (maxConversions > 0 && used >= maxConversions) {
+  if (maxConversions > 0 && conversionsRemaining <= 0) {
     resourceRow.style.boxShadow = "";
     return;
   }
@@ -328,7 +351,7 @@ function updateCantripResourceColor(html, actor) {
   const spellData = actor.system.spells;
   const costPerLevel = getCostPerLevel(actor);
 
-  let maxLevel = game.settings.get(MODULE_ID, "maxConversionLevel");
+  let maxLevel = getActorSetting(actor, ACTOR_FLAG.maxConversionLevel, GLOBAL_SETTING.maxConversionLevel);
 
   if (!Number.isInteger(maxLevel) || maxLevel <= 0)
     maxLevel = DEFAULT_MAX_CONVERSION_LEVEL;
@@ -410,11 +433,11 @@ function updateCantripResourceColor(html, actor) {
   const minCost = costPerLevel; // Level 1 slot minimum cost
 
   const maxConversions = getMaxConversionsPerLongRest(actor);
-  const used = getConversionsUsed(actor);
+  const conversionsRemaining = getRemainingConversions(actor);
 
   const conversionBlocked =
     current < minCost ||
-    (maxConversions > 0 && used >= maxConversions);
+    (maxConversions > 0 && conversionsRemaining <= 0);
 
   if (conversionBlocked) {
     gear.style.boxShadow = "";
