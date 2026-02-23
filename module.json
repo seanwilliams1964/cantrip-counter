@@ -2,7 +2,7 @@
   "id": "cantrip-counter",
   "title": "Cantrip Counter",
   "description": "Adds a dynamic Cantrip resource with optional spell slot conversion support for DnD5e.",
-  "version": "1.4.1",
+  "version": "v1.4.1",
   "authors": [
     {
       "name": "Sean Williams",
