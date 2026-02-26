@@ -267,3 +267,33 @@ git push origin main
 git push origin v1.4.0
 
 
+git config --global alias.release '!f() { \
+  VERSION=$1; \
+  if [ -z "$VERSION" ]; then \
+    echo "Usage: git release x.y.z"; \
+    exit 1; \
+  fi; \
+  BRANCH=$(git rev-parse --abbrev-ref HEAD); \
+  if [ "$BRANCH" = "main" ]; then \
+    echo "Do not run release from main. Run it from your feature branch."; \
+    exit 1; \
+  fi; \
+  echo "Releasing v$VERSION from branch $BRANCH..."; \
+  \
+  # Update module.json version safely (macOS + Linux compatible) \
+  TMP_FILE=$(mktemp); \
+  jq --arg v "$VERSION" ".version = \$v" module.json > "$TMP_FILE" && mv "$TMP_FILE" module.json; \
+  \
+  git add module.json; \
+  git commit -m "Release v$VERSION"; \
+  \
+  git checkout main && \
+  git pull origin main && \
+  git merge $BRANCH && \
+  git tag v$VERSION && \
+  git push origin main && \
+  git push origin v$VERSION && \
+  git checkout $BRANCH; \
+  \
+  echo "Release v$VERSION complete."; \
+}; f'
