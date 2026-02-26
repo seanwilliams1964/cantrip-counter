@@ -160,4 +160,12 @@ Hooks.once("init", () => {
       Hooks.callAll("cantripCounterRefreshUI");
     }
   });
+
+  game.settings.register(MODULE_ID, "defensiveCleanup_v1", {
+    scope: "world",
+    config: false,
+    type: Boolean,
+    default: false
+  });
+
 });

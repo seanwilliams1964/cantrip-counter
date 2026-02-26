@@ -30,10 +30,10 @@ class ActorConfigApp extends ApplicationV2 {
     }
   };
 
-  constructor(actor) {
-    super();
-    this.actor = actor;
-  }
+  constructor(actor, options = {}) {
+  super(options);
+  this.actor = actor;
+}
 
 /**
    * Render the inner HTML content for this application.
@@ -43,10 +43,17 @@ class ActorConfigApp extends ApplicationV2 {
    * @protected
    */
   async _renderHTML(context, options) {    
-    const overrideEnabled = getActorSetting(MODULE_ID, ACTOR_FLAG.overrideEnabled, GLOBAL_SETTING.overrideEnabled);
-    const costPerLevel = getActorSetting(MODULE_ID, ACTOR_FLAG.costPerLevel, GLOBAL_SETTING.costPerLevel);
-    const maxConversionLevel = getActorSetting(MODULE_ID, ACTOR_FLAG.maxConversionLevel, GLOBAL_SETTING.maxConversionLevel);
-    const maxConversionsPerLongRest = getActorSetting(MODULE_ID, ACTOR_FLAG.maxConversionsPerLongRest, GLOBAL_SETTING.maxConversionsPerLongRest) ?? "";
+
+    if (!this.actor) {
+      console.error("ActorConfigApp rendered without actor reference.");
+      return;
+    } 
+
+    const actor = this.actor;
+    const overrideEnabled = getActorSetting(actor, ACTOR_FLAG.overrideEnabled, GLOBAL_SETTING.overrideEnabled);
+    const costPerLevel = getActorSetting(actor, ACTOR_FLAG.costPerLevel, GLOBAL_SETTING.costPerLevel);
+    const maxConversionLevel = getActorSetting(actor, ACTOR_FLAG.maxConversionLevel, GLOBAL_SETTING.maxConversionLevel);
+    const maxConversionsPerLongRest = getActorSetting(actor, ACTOR_FLAG.maxConversionsPerLongRest, GLOBAL_SETTING.maxConversionsPerLongRest) ?? "";
 
     // Return raw HTML string (simplest approach)
     return `
@@ -187,8 +194,8 @@ class ConversionApp extends ApplicationV2 {
     }
   };
 
-  constructor(actor) {
-    super();
+ constructor(actor, options = {}) {
+    super(options);
     this.actor = actor;
   }
 
@@ -198,20 +205,26 @@ class ConversionApp extends ApplicationV2 {
    */
   async _renderHTML(context, options) {
 
-    const remaining = getRemainingConversions(this.actor);
-    const max = getMaxConversions(this.actor);
+    if (!this.actor) {
+      console.error("ConversionApp: actor is undefined.");
+      return;
+    }
 
-    if (hasReachedConversionCap(this.actor)) {
+    const actor = this.actor;
+    const remaining = getRemainingConversions(actor);
+    const max = getMaxConversions(actor);
+
+    if (hasReachedConversionCap(actor)) {
       return `
         <p><strong>Conversion Limit Reached</strong></p>
         <p>You have ${remaining}/${max} conversions remaining this long rest.</p>
       `;
     }
 
-    const remainingCantrips = this.actor.system.resources.secondary?.value ?? 0;
-    const spellData = this.actor.system.spells;
-    const maxLevel = getMaxConversionLevel(this.actor);
-    const costPerLevel = getCostPerLevel(this.actor);
+    const remainingCantrips = actor.system.resources.secondary?.value ?? 0;
+    const spellData = actor.system.spells;
+    const maxLevel = getMaxConversionLevel(actor);
+    const costPerLevel = getCostPerLevel(actor);
 
     let html = `
       <p><strong>Available Cantrips:</strong> ${remainingCantrips}</p>
@@ -389,8 +402,8 @@ class ActorColorConfigApp extends ApplicationV2 {
     }
   };
 
-  constructor(actor) {
-    super();
+  constructor(actor, options = {}) {
+    super(options);
     this.actor = actor;
   }
 
@@ -399,6 +412,11 @@ class ActorColorConfigApp extends ApplicationV2 {
   /* -------------------------------------------- */
 
   async _renderHTML(context, options) {
+
+    if (!this.actor) {
+      console.error("ActorColorConfigApp: actor is undefined.");
+      return;
+    }
 
   const actor = this.actor;
 
@@ -526,6 +544,12 @@ class ResetConfirmationApp extends ApplicationV2 {
   }
 
   async _renderHTML(context, options) {
+
+    if (!this.actor) {
+      console.error("ResetConfirmationApp: actor is undefined.");
+      return;
+    }
+
     return `
       <div style="padding:16px; text-align:center;">
         <p>

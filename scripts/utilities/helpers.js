@@ -16,31 +16,69 @@ export function getSpellcastingAbilityScore(actor) {
   return baseScore + bonus;
 }
 
-export function getActorSetting(actor, key, worldSettingKey) {
+export function getActorSetting(actor, key, worldSettingKey = null) {
 
-  debugLog(`getActorSetting called with key ${key} and actor:`, actor);
+  debugLog(`getActorSetting → key: ${key}, actor:`, actor);
 
- if (!actor || typeof actor.getFlag !== "function") {
-    debugLog("Actor is undefined");
+  /* -------------------------------------------- */
+  /* Validate Actor                               */
+  /* -------------------------------------------- */
+
+  if (!actor || typeof actor.getFlag !== "function") {
+    console.error("getActorSetting: invalid actor provided.");
+
+    // If no valid actor and no world fallback, return null
+    if (!worldSettingKey) return null;
+
     return game.settings.get(MODULE_ID, worldSettingKey);
   }
 
-  let actorValue = actor.getFlag(MODULE_ID, key);
+  /* -------------------------------------------- */
+  /* Check Actor Flag                             */
+  /* -------------------------------------------- */
+
+  const actorValue = actor.getFlag(MODULE_ID, key);
 
   if (actorValue !== undefined && actorValue !== null) {
-    debugLog("Actor value found:", actorValue);
-    return actorValue;
+    debugLog("Actor override found:", actorValue);
+    return normalizeHex(actorValue);
   }
 
-  actorValue = game.settings.get(MODULE_ID, worldSettingKey);
-  debugLog(`Actor setting not found, returning world setting: ${worldSettingKey} value: ${actorValue}`);
+  /* -------------------------------------------- */
+  /* No Actor Override — Check World Fallback     */
+  /* -------------------------------------------- */
 
-   if (typeof actorValue === "string" && actorValue.startsWith("#") && actorValue.length === 9) {
-    debugLog("Normalizing 8-digit HEX to 6-digit:", actorValue);
-    actorValue = actorValue.slice(0, 7);
+  if (!worldSettingKey) {
+    debugLog("No world fallback provided; returning null.");
+    return null;
   }
 
-  return actorValue;
+  const worldValue = game.settings.get(MODULE_ID, worldSettingKey);
+
+  debugLog(
+    `No actor override. Using world setting: ${worldSettingKey} →`,
+    worldValue
+  );
+
+  return normalizeHex(worldValue);
+}
+
+/* -------------------------------------------- */
+/* Normalize 8-digit HEX → 6-digit HEX          */
+/* -------------------------------------------- */
+
+function normalizeHex(value) {
+
+  if (
+    typeof value === "string" &&
+    value.startsWith("#") &&
+    value.length === 9
+  ) {
+    debugLog("Normalizing 8-digit HEX to 6-digit:", value);
+    return value.slice(0, 7);
+  }
+
+  return value;
 }
 
 export function cleanUpAndRestoreConversion(liveIcon, actor) {

@@ -5,18 +5,25 @@
  */
 
 // Core
-import { 
-  MODULE_ID, 
-  CURRENT_SCHEMA_VERSION, 
-  GLOBAL_SETTING, 
-  RESOURCE_LABEL, 
-  ACTOR_FLAG 
+import {
+  MODULE_ID,
+  CURRENT_SCHEMA_VERSION,
+  GLOBAL_SETTING,
+  RESOURCE_LABEL,
+  ACTOR_FLAG
 } from "../utilities/constants.js";
+
 import { debugLog } from "../utilities/debug.js";
 import { getMaxConversionsPerLongRest } from "../logic/conversions.js";
+import { runDefensiveMigration } from "./migration.js";
+
 import "./settings.js";
 import "./hooks.js";
 import "../ui/ui.js";
+
+/* ============================================ */
+/*  Ready Hook                                  */
+/* ============================================ */
 
 Hooks.once("ready", async () => {
 
@@ -48,25 +55,50 @@ Hooks.once("ready", async () => {
   }
 
   /* -------------------------------------------- */
-  /* Migration (GM Only)                          */
+  /* Non-GM Users                                */
   /* -------------------------------------------- */
 
   if (!game.user.isGM) {
-    debugLog("=== Cantrip Counter Loaded ===");
+    debugLog("=== Cantrip Counter Loaded (Player) ===");
     return;
   }
 
-  const storedVersion = game.settings.get(MODULE_ID, GLOBAL_SETTING.schemaVersion) ?? 0;
+  /* -------------------------------------------- */
+  /* Schema Version Check                        */
+  /* -------------------------------------------- */
 
-  if (storedVersion >= CURRENT_SCHEMA_VERSION) {
-    debugLog("=== Cantrip Counter Loaded ===");
-    return;
+  const storedVersion =
+    game.settings.get(MODULE_ID, GLOBAL_SETTING.schemaVersion) ?? 0;
+
+  if (storedVersion < CURRENT_SCHEMA_VERSION) {
+    await runSchemaMigration(storedVersion);
   }
 
-  debugLog(`Running migration to schema v${CURRENT_SCHEMA_VERSION}...`);
+  /* -------------------------------------------- */
+  /* Defensive Cleanup (Independent Layer)       */
+  /* -------------------------------------------- */
+
+  await runDefensiveMigration();
+
+  debugLog("=== Cantrip Counter Loaded (GM) ===");
+});
+
+/* ============================================ */
+/*  Schema Migration                            */
+/* ============================================ */
+
+async function runSchemaMigration(previousVersion) {
+
+  debugLog(
+    `Running schema migration from v${previousVersion} → v${CURRENT_SCHEMA_VERSION}...`
+  );
 
   for (const actor of game.actors) {
+
     if (actor.type !== "character") continue;
+
+    const hasSpellcasting = !!actor.system?.attributes?.spellcasting;
+    if(!hasSpellcasting) continue;
 
     /* -------------------------------------------- */
     /* v2 Migration: Primary → Secondary            */
@@ -100,9 +132,13 @@ Hooks.once("ready", async () => {
 
     if (used !== undefined && used !== null) {
 
+      if (!hasSpellcasting) {
+        await actor.unsetFlag(MODULE_ID, ACTOR_FLAG.conversionsUsed);
+        continue;
+      }
+
       const max = getMaxConversionsPerLongRest(actor) ?? 0;
 
-      // If unlimited or invalid, just remove flag
       if (!max || max <= 0) {
         await actor.unsetFlag(MODULE_ID, ACTOR_FLAG.conversionsUsed);
         continue;
@@ -120,30 +156,33 @@ Hooks.once("ready", async () => {
 
       await actor.unsetFlag(MODULE_ID, ACTOR_FLAG.conversionsUsed);
 
-      debugLog(`Migrated ${actor.name}: ${used} used → ${remaining}/${max} remaining`);
+      debugLog(
+        `Migrated ${actor.name}: ${used} used → ${remaining}/${max} remaining`
+      );
     }
 
     /* -------------------------------------------- */
-    /* Ensure Tertiary Exists For Enabled Actors    */
+    /* Ensure Tertiary Exists (Spellcasters Only)  */
     /* -------------------------------------------- */
+
+    if (!hasSpellcasting) continue;
+
+    const max = getMaxConversionsPerLongRest(actor) ?? 0;
+    if (max <= 0) continue;
 
     const tertiary = actor.system.resources?.tertiary;
 
     if (!tertiary || tertiary.label !== RESOURCE_LABEL.dailyConversions) {
 
-      const max = getMaxConversionsPerLongRest(actor) ?? 0;
+      await actor.update({
+        "system.resources.tertiary.label": RESOURCE_LABEL.dailyConversions,
+        "system.resources.tertiary.value": max,
+        "system.resources.tertiary.max": max,
+        "system.resources.tertiary.sr": false,
+        "system.resources.tertiary.lr": true
+      });
 
-      if (max > 0) {
-        await actor.update({
-          "system.resources.tertiary.label": RESOURCE_LABEL.dailyConversions,
-          "system.resources.tertiary.value": max,
-          "system.resources.tertiary.max": max,
-          "system.resources.tertiary.sr": false,
-          "system.resources.tertiary.lr": true
-        });
-
-        debugLog(`Initialized tertiary resource for ${actor.name}`);
-      }
+      debugLog(`Initialized tertiary resource for ${actor.name}`);
     }
   }
 
@@ -153,6 +192,5 @@ Hooks.once("ready", async () => {
     CURRENT_SCHEMA_VERSION
   );
 
-  debugLog(`Migration to schema v${CURRENT_SCHEMA_VERSION} complete.`);
-  debugLog("=== Cantrip Counter Loaded ===");
-});
+  debugLog(`Schema migration to v${CURRENT_SCHEMA_VERSION} complete.`);
+}

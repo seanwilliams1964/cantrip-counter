@@ -2,63 +2,96 @@ import {
   MODULE_ID, 
   DEFAULT_MAX_CONVERSION_LEVEL, 
   ACTOR_FLAG, 
-  GLOBAL_SETTING 
+  GLOBAL_SETTING,
+  RESOURCE_LABEL
 } from "../utilities/constants.js";
+
 import { 
   openConversionDialog, 
   openActorConfigDialog, 
   openActorColorConfig 
 } from "./dialogs.js";
+
 import { debugLog } from "../utilities/debug.js";
-import { getRenderedSheetRoot, querySheetAll  } from "../utilities/utility.js";
+import { getRenderedSheetRoot } from "../utilities/utility.js";
 import { getActorSetting } from "../utilities/helpers.js";
 import { getRemainingConversions } from "../logic/cantrip-state.js";
+
 import {
   isConversionEnabled,
   getMaxConversionsPerLongRest,
   getCostPerLevel,
 } from "../logic/conversions.js";
 
+/* ============================================ */
+/*  Sheet Render Hook                           */
+/* ============================================ */
+
 Hooks.on("renderActorSheetV2", async (app) => {
 
   const actor = app.actor;
   if (!actor || actor.type !== "character") return;
 
-  /* -------------------------------------------- */
-  /*  Resolve Fully Rendered Sheet Root           */
-  /* -------------------------------------------- */
-
   const root = await getRenderedSheetRoot(app);
   if (!root) return;
 
-  debugLog(`Root: ${root}`);
-  debugLog(`App Id: ${app.id}`);
+  const hasSpellcasting = !!actor.system?.attributes?.spellcasting;
+
+  debugLog(`Actor: ${actor.name}`);
+  debugLog(`Has Spellcasting: ${hasSpellcasting}`);
+
+  const secondaryResource = root.querySelector(
+    'li.resource[data-favorite-id="resources.secondary"]'
+  );
+
+  const tertiaryResource = root.querySelector(
+    'li.resource[data-favorite-id="resources.tertiary"]'
+  );
 
   /* -------------------------------------------- */
-  /*  Locate Primary Resource                     */
+  /*  NON-SPELLCASTERS → HIDE BOTH               */
   /* -------------------------------------------- */
 
-  const primaryResource = root.querySelector('li.resource[data-favorite-id="resources.secondary"]');
-  if (!primaryResource) return;
+  if (!hasSpellcasting) {
 
-  debugLog(`Primary resource: ${primaryResource}`);  
+    if (secondaryResource) {
+      secondaryResource.style.display = "none";
+      debugLog("Hid secondary resource (non-spellcaster)");
+    }
 
-  applyCantripLogic(app, root, primaryResource);
+    if (tertiaryResource) {
+      tertiaryResource.style.display = "none";
+      debugLog("Hid tertiary resource (non-spellcaster)");
+    }
 
-  // Only hide if this is your tracked resource
-  const tertiaryLabel = actor.system?.resources?.tertiary?.label;
-  if (tertiaryLabel !== "Daily Conversions") return;
+    return;
+  }
 
-  debugLog(`Tertiary label: ${tertiaryLabel}`); 
+  /* -------------------------------------------- */
+  /*  SPELLCASTERS                               */
+  /* -------------------------------------------- */
 
-  const tertiaryResource = root.querySelector('li.resource[data-favorite-id="resources.tertiary"]');
-  if (!tertiaryResource) return;
+  if (secondaryResource) {
+    secondaryResource.style.display = "";
+    applyCantripLogic(app, root, secondaryResource);
+  }
 
-  debugLog(`Tertiary resource: ${tertiaryResource}`); 
+  // Hide tertiary ONLY if it is the module's tracked resource
+  if (tertiaryResource) {
 
-  tertiaryResource.style.display = "none"; 
+    const tertiaryLabel =
+      (actor.system?.resources?.tertiary?.label || "").trim();
 
+    if (tertiaryLabel === RESOURCE_LABEL.dailyConversions) {
+      tertiaryResource.style.display = "none";
+      debugLog("Hid module tertiary resource");
+    }
+  }
 });
+
+/* ============================================ */
+/*  Force Sheet Refresh                         */
+/* ============================================ */
 
 Hooks.on("cantripCounterRefreshUI", () => {
   for (const app of Object.values(ui.windows)) {
@@ -68,48 +101,36 @@ Hooks.on("cantripCounterRefreshUI", () => {
   }
 });
 
+/* ============================================ */
+/*  Apply Cantrip Logic                         */
+/* ============================================ */
+
 function applyCantripLogic(app, root, primaryResource) {
 
   const actor = app.actor;
 
-  /* ---------- Locate Icon ---------- */
-
   const figure = primaryResource.querySelector("figure");
-  debugLog(`Figure: ${figure}`);
   if (!figure) return;
 
   const existingIcon = figure.querySelector("img");
-  debugLog(`Existing Icon: ${existingIcon}`);
   if (!existingIcon) return;
-
-  /* ---------- Mode + State ---------- */
 
   const isEditMode = !!root.querySelector("input.document-name");
   const conversionEnabled = isConversionEnabled(actor);
 
-  debugLog(`Is Edit Mode: ${isEditMode}`);
-  debugLog(`Is Conversion Enabled: ${conversionEnabled}`);
-
-  /* ---------- Restrict Manual Editing For Non-GM ---------- */
+  /* ---------- Restrict Manual Editing ---------- */
 
   const valueInput = primaryResource.querySelector(
     'input.uninput.value'
   );
 
   if (valueInput) {
-
     if (!game.user.isGM) {
-
-      debugLog("Disabling manual cantrip editing for non-GM");
-
       valueInput.disabled = true;
       valueInput.style.pointerEvents = "none";
       valueInput.style.opacity = "0.7";
       valueInput.title = "Only the GM may manually adjust cantrip uses.";
-
     } else {
-
-      // Restore normal behavior for GM
       valueInput.disabled = false;
       valueInput.style.pointerEvents = "";
       valueInput.style.opacity = "";
@@ -121,9 +142,6 @@ function applyCantripLogic(app, root, primaryResource) {
 
   const customIcon = game.settings.get(MODULE_ID, "cantripIcon");
   const defaultIcon = `modules/${MODULE_ID}/assets/cantrips.png`;
-
-  debugLog(`Custom Icon: ${customIcon}`);
-  debugLog(`Default Icon: ${defaultIcon}`);
 
   const icon = existingIcon.cloneNode(true);
   icon.src =
@@ -140,26 +158,21 @@ function applyCantripLogic(app, root, primaryResource) {
     icon.style.cursor = "default";
     icon.title = "Cantrip Uses (Locked in Edit Mode)";
 
+  } else if (conversionEnabled) {
+
+    icon.style.cursor = "pointer";
+    icon.title = "Convert Cantrips to Spell Slots";
+
+    icon.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openConversionDialog(actor);
+    });
+
   } else {
 
-    if (conversionEnabled) {
-
-      debugLog("Conversion Enabled");
-
-      icon.style.cursor = "pointer";
-      icon.title = "Convert Cantrips to Spell Slots";
-
-      icon.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        openConversionDialog(actor);
-      });
-
-    } else {
-
-      icon.style.cursor = "default";
-      icon.title = "Cantrip Uses";
-    }
+    icon.style.cursor = "default";
+    icon.title = "Cantrip Uses";
   }
 
   /* ---------- Delete Favorite Handling ---------- */
@@ -168,22 +181,12 @@ function applyCantripLogic(app, root, primaryResource) {
     'button[data-action="deleteFavorite"]'
   );
 
-  debugLog(`Delete Button: ${deleteButton}`);
-
   if (deleteButton) {
-
     if (isEditMode) {
-
-      debugLog("Disabling deleteFavorite button (edit mode)");
-
       deleteButton.disabled = true;
       deleteButton.style.pointerEvents = "none";
       deleteButton.style.opacity = "0.4";
-
     } else {
-
-      debugLog("Restoring deleteFavorite button (normal mode)");
-
       deleteButton.disabled = false;
       deleteButton.style.pointerEvents = "";
       deleteButton.style.opacity = "";
@@ -215,10 +218,11 @@ function applyCantripLogic(app, root, primaryResource) {
     }
   }
 
-  /* ---------- Player Color Config Icon ---------- */
+  /* ---------- Player Color Config ---------- */
 
-  // Remove existing icon if present (prevents duplication)
-  const existingColorIcon = primaryResource.querySelector(".cantrip-color-config");
+  const existingColorIcon =
+    primaryResource.querySelector(".cantrip-color-config");
+
   if (existingColorIcon) {
     existingColorIcon.remove();
   }
@@ -239,11 +243,9 @@ function applyCantripLogic(app, root, primaryResource) {
     });
 
     primaryResource.appendChild(colorIcon);
-
-    debugLog("Injected player color configuration icon.");
   }
 
-  /* ---------- Apply Color + Glow ---------- */
+  /* ---------- Color + Glow ---------- */
 
   const color = updateCantripResourceColor(root, actor);
 
@@ -251,88 +253,57 @@ function applyCantripLogic(app, root, primaryResource) {
   updateGearGlow(root, actor, color);
 }
 
+/* ============================================ */
+/*  Color Logic                                 */
+/* ============================================ */
+
 function updateCantripResourceColor(html, actor) {
 
-  debugLog("updateCantripResourceColor called for actor:", actor?.name);
-
   const resource = actor?.system?.resources?.secondary;
-  if (!resource) {
-    debugLog("No primary resource found.");
-    return null;
-  }
+  if (!resource) return null;
 
   const value = resource.value ?? 0;
   const max = resource.max ?? 1;
   const percent = max > 0 ? (value / max) * 100 : 0;
 
-  debugLog("Resource values:", { value, max, percent });
-
   const valueInput = html.querySelector(
     'li.resource[data-favorite-id="resources.secondary"] input.uninput.value'
   );
 
-  if (!valueInput) {
-    debugLog("Primary resource input not found in sheet HTML.");
-    return null;
-  }
+  if (!valueInput) return null;
 
-  // 🔹 Pull colors (actor override first)
   const glowLow = getActorSetting(actor, ACTOR_FLAG.glowLow, GLOBAL_SETTING.glowLow);
   const glowMedium = getActorSetting(actor, ACTOR_FLAG.glowMedium, GLOBAL_SETTING.glowMedium);
   const glowHigh = getActorSetting(actor, ACTOR_FLAG.glowHigh, GLOBAL_SETTING.glowHigh);
 
-  // 🔹 Pull thresholds (actor override first)
   let thresholdLow = Number(getActorSetting(actor, ACTOR_FLAG.thresholdLow, GLOBAL_SETTING.thresholdLow));
   let thresholdMedium = Number(getActorSetting(actor, ACTOR_FLAG.thresholdMedium, GLOBAL_SETTING.thresholdMedium));
 
-  debugLog("Retrieved actor color settings:", {
-    glowLow,
-    glowMedium,
-    glowHigh
-  });
-
-  debugLog("Retrieved actor thresholds:", {
-    thresholdLow,
-    thresholdMedium
-  });
-
-  // 🔹 Safety guard: enforce logical ordering
-  if (
-    !Number.isFinite(thresholdLow) ||
-    !Number.isFinite(thresholdMedium) ||
-    thresholdLow >= thresholdMedium
-  ) {
-    debugLog("Threshold validation failed. Reverting to safe defaults (25/50).");
+  if (!Number.isFinite(thresholdLow) ||
+      !Number.isFinite(thresholdMedium) ||
+      thresholdLow >= thresholdMedium) {
     thresholdLow = 25;
     thresholdMedium = 50;
   }
 
   let color;
 
-  if (percent <= thresholdLow) {
-    color = glowLow;
-    debugLog("Percent <= thresholdLow. Using glowLow:", color);
-  }
-  else if (percent <= thresholdMedium) {
-    color = glowMedium;
-    debugLog("Percent <= thresholdMedium. Using glowMedium:", color);
-  }
-  else {
-    color = glowHigh;
-    debugLog("Percent above medium threshold. Using glowHigh:", color);
-  }
+  if (percent <= thresholdLow) color = glowLow;
+  else if (percent <= thresholdMedium) color = glowMedium;
+  else color = glowHigh;
 
   valueInput.style.setProperty("color", color, "important");
-
-  debugLog("Applied color to resource input:", color);
 
   return color;
 }
 
- function updateConversionGlow(html, actor, glowColor) {
+/* ============================================ */
+/*  Conversion Glow                             */
+/* ============================================ */
 
-  const conversionEnabled = isConversionEnabled(actor);
-  if (!conversionEnabled) return;
+function updateConversionGlow(html, actor, glowColor) {
+
+  if (!isConversionEnabled(actor)) return;
 
   const resourceRow = html.querySelector(
     'li.resource[data-favorite-id="resources.secondary"]'
@@ -358,10 +329,9 @@ function updateCantripResourceColor(html, actor) {
 
   let canConvert = false;
 
-  /* ---- Normal Spell Slots ---- */
   for (let level = 1; level <= maxLevel; level++) {
 
-    const slot = spellData[`spell${level}`];
+    const slot = spellData?.[`spell${level}`];
     if (!slot) continue;
 
     const cost = level * costPerLevel;
@@ -372,32 +342,8 @@ function updateCantripResourceColor(html, actor) {
     }
   }
 
-  /* ---- Pact Slot Support ---- */
-  if (!canConvert) {
-    const pact = spellData.pact;
-
-    if (pact && pact.max > 0) {
-
-      const pactLevel = Number.isInteger(pact.level) && pact.level > 0
-        ? pact.level
-        : actor.system.details?.spellLevel ?? 1;
-
-      if (pactLevel <= maxLevel) {
-
-        const pactCost = pactLevel * costPerLevel;
-
-        if (pact.value < pact.max && remaining >= pactCost) {
-          canConvert = true; // for glow
-        }
-      }
-    }
-
-  }
-
-  /* ---- Apply Glow ---- */
   if (canConvert && glowColor) {
 
-    // Convert HEX (#rrggbb) to RGB values
     const r = parseInt(glowColor.slice(1, 3), 16);
     const g = parseInt(glowColor.slice(3, 5), 16);
     const b = parseInt(glowColor.slice(5, 7), 16);
@@ -405,19 +351,20 @@ function updateCantripResourceColor(html, actor) {
     resourceRow.style.boxShadow =
       `0 0 8px 2px rgba(${r}, ${g}, ${b}, 0.8)`;
 
-    resourceRow.style.transition = "box-shadow 0.3s ease";
-
   } else {
     resourceRow.style.boxShadow = "";
   }
 }
 
- function updateGearGlow(html, actor, glowColor) {
+/* ============================================ */
+/*  Gear Glow                                   */
+/* ============================================ */
+
+function updateGearGlow(html, actor, glowColor) {
 
   const gear = html.querySelector(".cantrip-config-gear");
   if (!gear) return;
 
-  // No glow if conversion disabled
   if (!isConversionEnabled(actor)) {
     gear.style.boxShadow = "";
     return;
@@ -427,10 +374,8 @@ function updateCantripResourceColor(html, actor) {
   if (!resource) return;
 
   const current = resource.value ?? 0;
-  const max = resource.max ?? 0;
-
   const costPerLevel = getCostPerLevel(actor);
-  const minCost = costPerLevel; // Level 1 slot minimum cost
+  const minCost = costPerLevel;
 
   const maxConversions = getMaxConversionsPerLongRest(actor);
   const conversionsRemaining = getRemainingConversions(actor);
