@@ -297,3 +297,8 @@ git config --global alias.release '!f() { \
   \
   echo "Release v$VERSION complete."; \
 }; f'
+
+USE:
+git add .
+git commit -m "Your changes"
+git release 2.2.1
