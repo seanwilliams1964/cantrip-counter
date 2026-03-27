@@ -23,6 +23,8 @@ import {
   getCostPerLevel,
 } from "../logic/conversions.js";
 
+import { syncResource } from "../logic/resources.js";
+
 /* ============================================ */
 /*  Sheet Render Hook                           */
 /* ============================================ */
@@ -32,13 +34,15 @@ Hooks.on("renderActorSheetV2", async (app) => {
   const actor = app.actor;
   if (!actor || actor.type !== "character") return;
 
+  await syncResource(actor);
+  
   const root = await getRenderedSheetRoot(app);
   if (!root) return;
 
   const hasSpellcasting = !!actor.system?.attributes?.spellcasting;
 
   debugLog(`Actor: ${actor.name}`);
-  debugLog(`Has Spellcasting: ${hasSpellcasting}`);
+  
 
   const secondaryResource = root.querySelector(
     'li.resource[data-favorite-id="resources.secondary"]'
@@ -47,6 +51,10 @@ Hooks.on("renderActorSheetV2", async (app) => {
   const tertiaryResource = root.querySelector(
     'li.resource[data-favorite-id="resources.tertiary"]'
   );
+
+  debugLog(`Has Spellcasting: ${hasSpellcasting}`);
+  debugLog(`Secondary Resource: ${secondaryResource}`);
+  debugLog(`Tertiary Resource: ${tertiaryResource}`);
 
   /* -------------------------------------------- */
   /*  NON-SPELLCASTERS → HIDE BOTH               */

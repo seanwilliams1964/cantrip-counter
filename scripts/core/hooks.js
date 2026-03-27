@@ -181,6 +181,15 @@ Hooks.on("renderActorSheet5eCharacter", (app, html) => {
   }
 });
 
+Hooks.on("dnd5e.restCompleted", async (actor, data) => {
+  if (actor.type !== "character") return;
+
+  const hasSpellcasting = !!actor.system?.attributes?.spellcasting;
+  if (!hasSpellcasting) return;
+
+  await syncResource(actor);
+});
+
 function requestActorSheetRefresh(actor) {
 
   debugLog("Fired requestActorSheetRefresh for actor:", actor);

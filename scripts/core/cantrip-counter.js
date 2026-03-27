@@ -20,6 +20,7 @@ import { runDefensiveMigration } from "./migration.js";
 import "./settings.js";
 import "./hooks.js";
 import "../ui/ui.js";
+import { syncResource } from "../logic/resources.js";
 
 /* ============================================ */
 /*  Ready Hook                                  */
@@ -53,6 +54,15 @@ Hooks.once("ready", async () => {
       }).render(true);
     }
   }
+
+  for (const actor of game.actors) {
+  if (actor.type !== "character") continue;
+
+  const hasSpellcasting = !!actor.system?.attributes?.spellcasting;
+  if (!hasSpellcasting) continue;
+
+  await syncResource(actor);
+}
 
   /* -------------------------------------------- */
   /* Non-GM Users                                */
