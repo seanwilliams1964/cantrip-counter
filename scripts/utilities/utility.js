@@ -1,3 +1,5 @@
+import { debugLog } from "../utilities/debug.js";
+
 /* -------------------------------------------- */
 /*  SHEET LIFECYCLE UTILITIES                   */
 /* -------------------------------------------- */
@@ -22,12 +24,30 @@ export function nextFrame() {
 }
 
 /**
- * Wait for sheet to fully render and return its root.
- * This is the safest entry point for DOM manipulation.
+ * Wait for sheet to fully render AND for favorites resources to be injected.
+ * This is critical for V2 sheet + DDB imports.
  */
 export async function getRenderedSheetRoot(app) {
-  await nextFrame();
-  return getSheetRoot(app);
+  if (!app?.id) return null;
+
+  await new Promise(requestAnimationFrame);
+
+  let root = document.getElementById(app.id);
+  if (!root) return null;
+
+  // Longer wait for V2 sheet favorites (DDB imports make this flaky)
+  for (let i = 0; i < 25; i++) {   // ~500ms max
+    const secondary = root.querySelector('li.resource[data-favorite-id="resources.secondary"]') ||
+                      root.querySelector('li.resource');
+    if (secondary) {
+      debugLog(`Favorites resource detected after ${i * 20}ms wait`);
+      return root;
+    }
+    await new Promise(r => setTimeout(r, 20));
+  }
+
+  debugLog("Warning: Secondary resource still not visible in DOM");
+  return root;
 }
 
 /**

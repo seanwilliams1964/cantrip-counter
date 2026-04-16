@@ -1,76 +1,127 @@
+import { hasRemainingCantripUses, syncResource, syncConversionResource } from "../logic/resources.js";
+import { getRenderedSheetRoot } from "../utilities/utility.js";
+import { applyCantripLogic } from "../ui/ui.js";  
+import { RESOURCE_LABEL } from "../utilities/constants.js";
 import { debugLog } from "../utilities/debug.js";
-import { hasRemainingCantrips } from '../logic/cantrip-state.js';
-import { syncResource } from "../logic/resources.js";
-
-Hooks.on("updateActor", (actor, changed) => {
-
-  debugLog("Hook on updateActor for actor:", actor.name, " with changed data:", changed);
 
 
-  if (actor.type !== "character") return;
+Hooks.on("updateActor", async (actor, changes, options) => {
+  if (!actor || actor.type !== "character") return;
 
-  const newValue = foundry.utils.getProperty(changed, "system.resources.secondary.value");
-  if (newValue === undefined) return;
+  const isOurUpdate = options?.cantripCounterSync === true;
 
-  debugLog("newValue", newValue);
+  debugLog("updateActor fired for", actor.name, "with changes:", changes);
 
-  const max = actor.system.resources.secondary?.max ?? 0;
+  /* ============================================ */
+  /* 1. Force sync on ANY external update         */
+  /*    (This is the DDB import fix)              */
+  /* ============================================ */
+  if (!isOurUpdate) {
+    await syncResource(actor);
+    await syncConversionResource(actor);
+  }
 
-  // If value equals max (meaning it was clamped), force sheet refresh
-  if (actor.system.resources.secondary.value === max) {
-
-    debugLog("Forcing sheet re-render to sync clamped value.");
-
-    for (const app of Object.values(ui.windows)) {
-      if (app?.object?.id === actor.id) {
-        app.render(false);
+  /* ============================================ */
+  /* 2. Resource Clamping Refresh                 */
+  /* ============================================ */
+  const newValue = foundry.utils.getProperty(changes, "system.resources.secondary.value");
+  if (newValue !== undefined) {
+    const max = actor.system.resources.secondary?.max ?? 0;
+    if (actor.system.resources.secondary.value === max) {
+      debugLog("Forcing sheet re-render to sync clamped cantrip value.");
+      for (const app of Object.values(actor.apps)) {
+        if (typeof app.render === "function") app.render(false);
       }
     }
   }
 
-  debugLog("Exiting updateActor hook.");
-});
-
-Hooks.on("dnd5e.preUseActivity", (activity, config, options) => {
-
-  debugLog("Fired dnd5e.preUseActivity with activity:", activity.type);
-
-  const item = activity?.item; const actor = activity?.actor;
-
-  if (!item || !actor) return;
-
-  if (actor.type !== "character") return;
-
-  // Only spells
-  if (item.type !== "spell") return;
-
-  const spellLevel = item.system.level ?? 0;
-
-  // Only cantrips
-  if (spellLevel !== 0) return;
-
-  /* ---- Allow Exceptions ---- */
-
-  // Scroll
-  if (item.system.source?.type === "scroll") return;
-
-  // At-will
-  if (item.system.preparation?.mode === "atwill") return;
-
-  // Item uses
-  if (item.system.uses?.max > 0) return;
-
-  /* ---- Block If Empty ---- */
-
-  if (!hasRemainingCantrips(actor)) {
-
-    debugLog("No remaining cantrips for actor:", actor.name);
-
-    ui.notifications.warn(
-      `${actor.name} has no remaining cantrip uses.`
+  /* ============================================ */
+  /* 3. Favorites Protection — Secondary Resource */
+  /* ============================================ */
+  if (foundry.utils.hasProperty(changes, "system.favorites")) {
+    const favorites = actor.system.favorites ?? [];
+    const hasSecondary = favorites.some(f =>
+      f?.type === "resources" && f?.id === "secondary"
     );
 
-    return false; // Cancels activity
+    const secondary = actor.system.resources?.secondary;
+    const isCantripResource = secondary?.label === RESOURCE_LABEL.cantripUses;
+    const hasSpellcasting = !!actor.system?.attributes?.spellcasting;
+
+    if (!hasSecondary && isCantripResource && hasSpellcasting && !options?.cantripCounterRestore) {
+      debugLog(`Secondary resource (Cantrip Uses) missing from favorites — restoring for ${actor.name}`);
+
+      const updatedFavorites = [
+        ...favorites.filter(f => !(f?.type === "resources" && f?.id === "secondary")),
+        { type: "resources", id: "secondary" }
+      ];
+
+      await actor.update(
+        { "system.favorites": updatedFavorites },
+        { cantripCounterRestore: true }
+      );
+      // Continue processing (do not early return)
+    }
+  }
+
+  /* ============================================ */
+  /* 4. Prevent loops on our own updates          */
+  /* ============================================ */
+  if (isOurUpdate) {
+    debugLog("Exiting updateActor (our own sync update)");
+    return;
+  }
+
+  /* ============================================ */
+  /* 5. Spellcasting Ability Change               */
+  /* ============================================ */
+  const abilitiesUpdate = foundry.utils.getProperty(changes, "system.abilities");
+  if (abilitiesUpdate) {
+    const abilityScore = getSpellcastingAbilityScore(actor);
+    if (abilityScore === null || abilityScore === undefined) return;
+
+    const resource = actor.system.resources?.secondary;
+    if (!resource || resource.label !== RESOURCE_LABEL.cantripUses) return;
+
+    const currentMax = resource.max ?? 0;
+    const currentValue = resource.value ?? 0;
+
+    if (currentMax === abilityScore) return;
+
+    const newClampedValue = Math.min(currentValue, abilityScore);
+
+    await actor.update({
+      "system.resources.secondary.max": abilityScore,
+      "system.resources.secondary.value": newClampedValue
+    }, { cantripCounterSync: true });
+
+    debugLog(`Resynced ${actor.name}: max ${currentMax} → ${abilityScore}, value ${currentValue} → ${newClampedValue}`);
+  }
+
+  debugLog("Exiting consolidated updateActor hook for", actor.name);
+});
+
+Hooks.on("dnd5e.preUseActivity", async (activity, config, options) => {
+  debugLog("Fired dnd5e.preUseActivity with activity:", activity.type);
+
+  const item = activity?.item; 
+  const actor = activity?.actor;
+
+  if (!item || !actor || actor.type !== "character") return;
+  if (item.type !== "spell" || item.system.level !== 0) return;
+
+  /* ---- Allow Exceptions ---- */
+  if (item.system.source?.type === "scroll") return;
+  if (item.system.preparation?.mode === "atwill") return;
+  if (item.system.uses?.max > 0) return;
+
+  /* ---- Force sync before check (critical for DDB imports) ---- */
+  await syncResource(actor);
+
+  if (!hasRemainingCantripUses(actor)) {
+    debugLog("No remaining cantrips for actor:", actor.name);
+    ui.notifications.warn(`${actor.name} has no remaining cantrip uses.`);
+    return false; // Cancels the activity
   }
 });
 
@@ -84,6 +135,7 @@ Hooks.on("dnd5e.preUseItem", async (item) => {
   if (!actor?.hasPlayerOwner) return;
 
   await syncResource(actor);
+  await syncConversionResource(actor);
 
   const resource = actor.system.resources.secondary;
   const remaining = resource.value ?? 0;
@@ -114,6 +166,7 @@ Hooks.on("createChatMessage", async (message) => {
   if (!actor?.hasPlayerOwner) return;
 
   await syncResource(actor);
+  await syncConversionResource(actor);
 
   const resource = actor.system.resources.secondary;
   const current = resource.value ?? 0;
@@ -143,35 +196,6 @@ Hooks.on("createChatMessage", async (message) => {
   debugLog(`Cantrip used by ${actor.name}. Remaining: ${newValue}/${max}`);
 });
 
-Hooks.on("updateActor", async (actor, changes, options) => {
-
-  if (!actor || actor.type !== "character") return;
-
-  if (!foundry.utils.hasProperty(changes, "system.favorites")) return;
-
-  const favorites = actor.system.favorites ?? [];
-
-  const hasPrimary = favorites.some(f =>
-    f?.type === "resources" && f?.id === "primary"
-  );
-
-  if (hasPrimary) return;
-  if (options?.cantripCounterRestore) return;
-
-  debugLog("Primary resource removed — restoring.");
-
-  const updatedFavorites = [
-    ...favorites.filter(f => !(f?.type === "resources" && f?.id === "primary")),
-    { type: "resources", id: "primary" }
-  ];
-
-  await actor.update(
-    { "system.favorites": updatedFavorites },
-    { cantripCounterRestore: true }
-  );
-
-});
-
 Hooks.on("renderActorSheet5eCharacter", (app, html) => {
   const secondaryInput = html.find(
     'input[name="system.resources.secondary.label"]'
@@ -188,6 +212,95 @@ Hooks.on("dnd5e.restCompleted", async (actor, data) => {
   if (!hasSpellcasting) return;
 
   await syncResource(actor);
+  await syncConversionResource(actor);
+});
+
+/* ============================================ */
+/*  Force Sheet Refresh                         */
+/* ============================================ */
+
+Hooks.on("cantripCounterRefreshUI", () => {
+  for (const app of Object.values(ui.windows)) {
+    if (app?.object?.type === "character") {
+      app.render(false);
+    }
+  }
+});
+
+/* ============================================ */
+/*  Sheet Render Hook (Legacy + V2)            */
+/* ============================================ */
+
+Hooks.on("renderActorSheet5eCharacter", handleCantripSheetRender);
+Hooks.on("renderActorSheet5eCharacter2", handleCantripSheetRender);
+Hooks.on("renderActorSheetV2", handleCantripSheetRender);
+
+async function handleCantripSheetRender(app) {
+  const actor = app.actor;
+  if (!actor || actor.type !== "character") return;
+
+  debugLog(`handleCantripSheetRender fired for ${actor.name} (app id: ${app.id}, class: ${app.constructor.name})`);
+
+  // Force data sync first
+  await syncResource(actor);
+  await syncConversionResource(actor);
+
+  const root = await getRenderedSheetRoot(app);
+  if (!root) {
+    debugLog(`No root element found for ${actor.name}`);
+    return;
+  }
+
+  const hasSpellcasting = !!actor.system?.attributes?.spellcasting;
+
+  // Broader selector as fallback (V2 sheet sometimes uses different structure)
+  let secondaryResource = root.querySelector('li.resource[data-favorite-id="resources.secondary"]');
+  if (!secondaryResource) {
+    secondaryResource = root.querySelector('li.resource[data-resource="secondary"]') || 
+                        Array.from(root.querySelectorAll('li.resource')).find(li => 
+                          li.textContent.includes("Cantrip Uses") || 
+                          li.querySelector('input[name*="secondary"]')
+                        );
+  }
+
+  const tertiaryResource = root.querySelector('li.resource[data-favorite-id="resources.tertiary"]');
+
+  if (!hasSpellcasting) {
+    if (secondaryResource) secondaryResource.style.display = "none";
+    if (tertiaryResource) tertiaryResource.style.display = "none";
+    return;
+  }
+
+  if (secondaryResource) {
+    secondaryResource.style.display = "";
+    applyCantripLogic(app, root, secondaryResource);
+    debugLog(`✅ Applied cantrip logic to secondary resource for ${actor.name}`);
+  } else {
+    debugLog(`❌ Secondary resource element NOT found in DOM for ${actor.name}. Current HTML snippet:`, 
+      root.querySelector('.favorites') ? root.querySelector('.favorites').outerHTML.substring(0, 300) : "No .favorites section");
+  }
+
+  // Always hide our tertiary if present
+  if (tertiaryResource) {
+    const tertiaryLabel = (actor.system?.resources?.tertiary?.label || "").trim();
+    if (tertiaryLabel === RESOURCE_LABEL.dailyConversions) {
+      tertiaryResource.style.display = "none";
+      debugLog(`Hid tertiary (Daily Conversions) for ${actor.name}`);
+    }
+  }
+}
+/* ============================================ */
+/*  ABILITY SCORE + SETTING HOOKS               */
+/* ============================================ */
+
+
+Hooks.on("updateSetting", async (setting) => {
+  if (setting.key === `${MODULE_ID}.bonusCantrips`) {
+    await refreshAllCantripMaximums();
+  }
+  if (setting.key === `${MODULE_ID}.maxConversionsPerLongRest`) {
+    await refreshAllConversionMaximums();
+  }
 });
 
 function requestActorSheetRefresh(actor) {

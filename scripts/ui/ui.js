@@ -1,214 +1,116 @@
-import { 
-  MODULE_ID, 
-  DEFAULT_MAX_CONVERSION_LEVEL, 
-  ACTOR_FLAG, 
-  GLOBAL_SETTING,
-  RESOURCE_LABEL
-} from "../utilities/constants.js";
-
-import { 
-  openConversionDialog, 
-  openActorConfigDialog, 
-  openActorColorConfig 
-} from "./dialogs.js";
-
-import { debugLog } from "../utilities/debug.js";
-import { getRenderedSheetRoot } from "../utilities/utility.js";
+import { MODULE_ID, DEFAULT_MAX_CONVERSION_LEVEL, ACTOR_FLAG, GLOBAL_SETTING } from "../utilities/constants.js";
+import { openConversionDialog, openActorConfigDialog, openActorColorConfig } from "./dialogs.js";
 import { getActorSetting } from "../utilities/helpers.js";
 import { getRemainingConversions } from "../logic/cantrip-state.js";
-
-import {
-  isConversionEnabled,
-  getMaxConversionsPerLongRest,
-  getCostPerLevel,
-} from "../logic/conversions.js";
-
-import { syncResource } from "../logic/resources.js";
-
-/* ============================================ */
-/*  Sheet Render Hook                           */
-/* ============================================ */
-
-Hooks.on("renderActorSheetV2", async (app) => {
-
-  const actor = app.actor;
-  if (!actor || actor.type !== "character") return;
-
-  await syncResource(actor);
-  
-  const root = await getRenderedSheetRoot(app);
-  if (!root) return;
-
-  const hasSpellcasting = !!actor.system?.attributes?.spellcasting;
-
-  debugLog(`Actor: ${actor.name}`);
-  
-
-  const secondaryResource = root.querySelector(
-    'li.resource[data-favorite-id="resources.secondary"]'
-  );
-
-  const tertiaryResource = root.querySelector(
-    'li.resource[data-favorite-id="resources.tertiary"]'
-  );
-
-  debugLog(`Has Spellcasting: ${hasSpellcasting}`);
-  debugLog(`Secondary Resource: ${secondaryResource}`);
-  debugLog(`Tertiary Resource: ${tertiaryResource}`);
-
-  /* -------------------------------------------- */
-  /*  NON-SPELLCASTERS → HIDE BOTH               */
-  /* -------------------------------------------- */
-
-  if (!hasSpellcasting) {
-
-    if (secondaryResource) {
-      secondaryResource.style.display = "none";
-      debugLog("Hid secondary resource (non-spellcaster)");
-    }
-
-    if (tertiaryResource) {
-      tertiaryResource.style.display = "none";
-      debugLog("Hid tertiary resource (non-spellcaster)");
-    }
-
-    return;
-  }
-
-  /* -------------------------------------------- */
-  /*  SPELLCASTERS                               */
-  /* -------------------------------------------- */
-
-  if (secondaryResource) {
-    secondaryResource.style.display = "";
-    applyCantripLogic(app, root, secondaryResource);
-  }
-
-  // Hide tertiary ONLY if it is the module's tracked resource
-  if (tertiaryResource) {
-
-    const tertiaryLabel =
-      (actor.system?.resources?.tertiary?.label || "").trim();
-
-    if (tertiaryLabel === RESOURCE_LABEL.dailyConversions) {
-      tertiaryResource.style.display = "none";
-      debugLog("Hid module tertiary resource");
-    }
-  }
-});
-
-/* ============================================ */
-/*  Force Sheet Refresh                         */
-/* ============================================ */
-
-Hooks.on("cantripCounterRefreshUI", () => {
-  for (const app of Object.values(ui.windows)) {
-    if (app?.object?.type === "character") {
-      app.render(false);
-    }
-  }
-});
+import { debugLog } from "../utilities/debug.js";
+import { isConversionEnabled, getMaxConversionsPerLongRest, getCostPerLevel } from "../logic/conversions.js";
 
 /* ============================================ */
 /*  Apply Cantrip Logic                         */
 /* ============================================ */
-
-function applyCantripLogic(app, root, primaryResource) {
-
+export async function applyCantripLogic(app, root, resourceElement) {
   const actor = app.actor;
+  if (!resourceElement || !actor) {
+    debugLog("applyCantripLogic: missing resourceElement or actor");
+    return;
+  }
 
-  const figure = primaryResource.querySelector("figure");
-  if (!figure) return;
+  const figure = resourceElement.querySelector("figure");
+  if (!figure) {
+    debugLog("applyCantripLogic: no <figure> found");
+    return;
+  }
 
-  const existingIcon = figure.querySelector("img");
-  if (!existingIcon) return;
+  let icon = figure.querySelector("img");
+  if (!icon) {
+    debugLog("applyCantripLogic: no <img> found inside figure");
+    return;
+  }
 
-  const isEditMode = !!root.querySelector("input.document-name");
+  /* ---------- Strict Edit Mode Detection using utility style ---------- */
+  // Use querySheet for consistency (though root is already passed)
+  const nameInput = root.querySelector('input.document-name, .document-name input, input[name="name"]');
+  const editButton = root.querySelector('.sheet-header .fas.fa-edit, .window-header button.edit, .window-header .fa-pencil, .edit-icon');
+  const isInEditMode = !!(nameInput || editButton);
+  const isEditMode = game.user.isGM && isInEditMode;
+
+  debugLog(`applyCantripLogic for ${actor.name} — isInEditMode: ${isInEditMode}, final isEditMode: ${isEditMode}`);
+
   const conversionEnabled = isConversionEnabled(actor);
 
-  /* ---------- Restrict Manual Editing ---------- */
-
-  const valueInput = primaryResource.querySelector(
-    'input.uninput.value'
-  );
-
-  if (valueInput) {
-    if (!game.user.isGM) {
-      valueInput.disabled = true;
-      valueInput.style.pointerEvents = "none";
-      valueInput.style.opacity = "0.7";
-      valueInput.title = "Only the GM may manually adjust cantrip uses.";
-    } else {
-      valueInput.disabled = false;
-      valueInput.style.pointerEvents = "";
-      valueInput.style.opacity = "";
-      valueInput.title = "";
-    }
-  }
-
-  /* ---------- Replace Icon ---------- */
-
-  const customIcon = game.settings.get(MODULE_ID, "cantripIcon");
+  /* ---------- Custom Icon ---------- */
+  const customIconPath = (game.settings.get(MODULE_ID, "cantripIcon") || "").trim();
   const defaultIcon = `modules/${MODULE_ID}/assets/cantrips.png`;
+  const newIconSrc = customIconPath || defaultIcon;
 
-  const icon = existingIcon.cloneNode(true);
-  icon.src =
-    customIcon && customIcon.trim() !== ""
-      ? customIcon
-      : defaultIcon;
-
-  figure.replaceChild(icon, existingIcon);
-
-  /* ---------- Icon Interaction ---------- */
-
-  if (isEditMode) {
-
-    icon.style.cursor = "default";
-    icon.title = "Cantrip Uses (Locked in Edit Mode)";
-
-  } else if (conversionEnabled) {
-
-    icon.style.cursor = "pointer";
-    icon.title = "Convert Cantrips to Spell Slots";
-
-    icon.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      openConversionDialog(actor);
-    });
-
-  } else {
-
-    icon.style.cursor = "default";
-    icon.title = "Cantrip Uses";
+  if (icon.src !== newIconSrc) {
+    icon.src = newIconSrc;
   }
+  figure.style.backgroundImage = `url("${newIconSrc}")`;
 
-  /* ---------- Delete Favorite Handling ---------- */
-
-  const deleteButton = primaryResource.querySelector(
-    'button[data-action="deleteFavorite"]'
-  );
-
-  if (deleteButton) {
-    if (isEditMode) {
-      deleteButton.disabled = true;
-      deleteButton.style.pointerEvents = "none";
-      deleteButton.style.opacity = "0.4";
-    } else {
-      deleteButton.disabled = false;
-      deleteButton.style.pointerEvents = "";
-      deleteButton.style.opacity = "";
+  /* ---------- Click Handler (aggressive for V2 sheet) ---------- */
+  const handleConversionClick = (event) => {
+    if (isEditMode || !conversionEnabled) {
+      debugLog(`Click blocked — isEditMode:${isEditMode} conversionEnabled:${conversionEnabled}`);
+      return;
     }
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    event.stopPropagation();
+    debugLog(`Opening conversion dialog for ${actor.name}`);
+    openConversionDialog(actor);
+  };
+
+  // Clean + re-attach
+  icon.removeEventListener("click", handleConversionClick, { capture: true });
+  icon.removeEventListener("click", handleConversionClick);
+  icon.onclick = null;
+
+  icon.style.cursor = (!isEditMode && conversionEnabled) ? "pointer" : "default";
+  icon.title = isEditMode 
+    ? "Cantrip Uses (Locked in Edit Mode)" 
+    : conversionEnabled 
+      ? "Click to convert Cantrips into Spell Slots" 
+      : "Cantrip Uses";
+
+  if (!isEditMode && conversionEnabled) {
+    icon.addEventListener("click", handleConversionClick, { capture: true });
+    debugLog(`Click handler attached to Cantrip icon for ${actor.name}`);
   }
 
-  /* ---------- GM Config Gear ---------- */
+  /* ---------- Value Input Lock (GM only) ---------- */
+  const valueInput = resourceElement.querySelector('input[name*="secondary.value"], input.uninput.value');
+  if (valueInput) {
+    valueInput.disabled = !game.user.isGM;
+    valueInput.style.pointerEvents = game.user.isGM ? "" : "none";
+    valueInput.style.opacity = game.user.isGM ? "" : "0.7";
+  }
 
-  if (game.user.isGM && isEditMode) {
+  /* ---------- GM Config Icons using consistent querying ---------- */
 
-    const headerButtons = root.querySelector(".sheet-header-buttons");
+  // Color Palette — next to resource, only in true edit mode
+  resourceElement.querySelectorAll('.cantrip-color-config').forEach(el => el.remove());
+  if (isEditMode && game.user.isGM) {
+    const colorBtn = document.createElement("button");
+    colorBtn.type = "button";
+    colorBtn.classList.add("gold-button", "cantrip-color-config");
+    colorBtn.innerHTML = `<i class="fas fa-palette"></i>`;
+    colorBtn.title = "Configure Cantrip Resource Colors";
+    colorBtn.style.marginLeft = "4px";
+    colorBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      openActorColorConfig(actor);
+    });
+    resourceElement.appendChild(colorBtn);
+  }
 
-    if (headerButtons && !headerButtons.querySelector(".cantrip-config-gear")) {
+  // Gear — in sheet header buttons (use querySheet style for consistency)
+  const headerButtons = root.querySelector(".sheet-header-buttons");
+  if (headerButtons) {
+    headerButtons.querySelectorAll('.cantrip-config-gear').forEach(el => el.remove());
 
+    if (isEditMode && game.user.isGM) {
       const gear = document.createElement("button");
       gear.type = "button";
       gear.classList.add("gold-button", "cantrip-config-gear");
@@ -216,49 +118,23 @@ function applyCantripLogic(app, root, primaryResource) {
       gear.title = "Cantrip Conversion Settings";
       gear.style.marginLeft = "4px";
 
-      gear.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
+      gear.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopImmediatePropagation();
         openActorConfigDialog(actor);
       });
 
       headerButtons.appendChild(gear);
+      debugLog(`Added GM gear to sheet-header-buttons for ${actor.name}`);
     }
   }
 
-  /* ---------- Player Color Config ---------- */
-
-  const existingColorIcon =
-    primaryResource.querySelector(".cantrip-color-config");
-
-  if (existingColorIcon) {
-    existingColorIcon.remove();
-  }
-
-  if (isEditMode) {
-
-    const colorIcon = document.createElement("button");
-    colorIcon.type = "button";
-    colorIcon.classList.add("gold-button", "cantrip-color-config");
-    colorIcon.innerHTML = `<i class="fas fa-palette"></i>`;
-    colorIcon.title = "Configure Cantrip Resource Colors";
-    colorIcon.style.marginLeft = "4px";
-
-    colorIcon.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      openActorColorConfig(actor);
-    });
-
-    primaryResource.appendChild(colorIcon);
-  }
-
   /* ---------- Color + Glow ---------- */
-
   const color = updateCantripResourceColor(root, actor);
-
   updateConversionGlow(root, actor, color);
   updateGearGlow(root, actor, color);
+
+  debugLog(`applyCantripLogic completed for ${actor.name}`);
 }
 
 /* ============================================ */

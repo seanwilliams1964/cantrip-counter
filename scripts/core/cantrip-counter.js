@@ -20,7 +20,7 @@ import { runDefensiveMigration } from "./migration.js";
 import "./settings.js";
 import "./hooks.js";
 import "../ui/ui.js";
-import { syncResource } from "../logic/resources.js";
+import { syncResource, syncConversionResource } from "../logic/resources.js";
 
 /* ============================================ */
 /*  Ready Hook                                  */
@@ -62,6 +62,7 @@ Hooks.once("ready", async () => {
   if (!hasSpellcasting) continue;
 
   await syncResource(actor);
+  await syncConversionResource(actor);
 }
 
   /* -------------------------------------------- */

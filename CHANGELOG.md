@@ -1,5 +1,17 @@
 # Changelog
 
+## [2.2.3] - 2026-04-16 – D&D Beyond Import Resilience & V2 Sheet Polish
+
+### Fixed
+- Critical D&D Beyond importer compatibility: module now reliably restores Cantrip Uses resource, favorites entry, and UI after full actor overwrite.
+- Sheet render timing and DOM detection improved for dnd5e V2 (`renderActorSheetV2` hook + better waiting).
+- Strict edit-mode detection so GM gear and color palette only appear when actually editing.
+- Reliable click handler for Cantrip Uses icon (conversion dialog opens correctly).
+- Consistent use of utility helpers and aggressive event cleanup.
+
+### Improved
+- Better debug logging during sheet render and applyCantripLogic.
+
 ## [2.0.0] - 2026-02-22 – Conversion System Refactor & Internal Resource Handling
 
 ### Added
