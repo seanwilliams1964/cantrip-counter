@@ -39,6 +39,16 @@ Hooks.once("init", () => {
     default: 0
   });
 
+  game.settings.register(MODULE_ID, GLOBAL_SETTING.preventCantripScaling, {
+    name: "Prevent Cantrip Scaling",
+    hint: "If enabled, cantrips will not scale with character level and will always deal damage as if cast by a 1st-level character.",
+    scope: "world",
+    config: true,
+    restricted: true,
+    type: Boolean,
+    default: false
+  });
+
   game.settings.register(MODULE_ID, GLOBAL_SETTING.enableConversion, {
     name: "Enable Spell Slot Conversion",
     hint: "Allow players to convert cantrips into spell slots.",

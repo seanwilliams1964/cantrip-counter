@@ -137,6 +137,24 @@ export async function applyCantripLogic(app, root, resourceElement) {
   debugLog(`applyCantripLogic completed for ${actor.name}`);
 }
 
+export async function requestActorSheetRefresh(actor) {
+
+  debugLog("Fired requestActorSheetRefresh for actor:", actor);
+
+  setTimeout(() => {
+    const apps = Object.values(actor.apps);
+
+    debugLog("Actor apps:", apps);
+
+    for (const app of apps) {
+      if (typeof app.render === "function") {
+        app.render(true);
+      }
+    }
+
+  }, 0);
+} 
+
 /* ============================================ */
 /*  Color Logic                                 */
 /* ============================================ */
@@ -180,10 +198,6 @@ function updateCantripResourceColor(html, actor) {
 
   return color;
 }
-
-/* ============================================ */
-/*  Conversion Glow                             */
-/* ============================================ */
 
 function updateConversionGlow(html, actor, glowColor) {
 
@@ -240,10 +254,6 @@ function updateConversionGlow(html, actor, glowColor) {
   }
 }
 
-/* ============================================ */
-/*  Gear Glow                                   */
-/* ============================================ */
-
 function updateGearGlow(html, actor, glowColor) {
 
   const gear = html.querySelector(".cantrip-config-gear");
@@ -275,3 +285,4 @@ function updateGearGlow(html, actor, glowColor) {
 
   gear.style.boxShadow = `0 0 6px 2px ${glowColor}`;
 }
+

@@ -1,10 +1,15 @@
 import { hasRemainingCantripUses, syncResource, syncConversionResource } from "../logic/resources.js";
+import { getSpellcastingAbilityScore } from "../utilities/helpers.js";
 import { getRenderedSheetRoot } from "../utilities/utility.js";
-import { applyCantripLogic } from "../ui/ui.js";  
-import { RESOURCE_LABEL } from "../utilities/constants.js";
+import { applyCantripLogic, requestActorSheetRefresh } from "../ui/ui.js";  
+import { GLOBAL_SETTING, MODULE_ID, RESOURCE_LABEL } from "../utilities/constants.js";
 import { debugLog } from "../utilities/debug.js";
+import { getActorSetting } from "../utilities/helpers.js";
+import { consumeCantrip, consumeConversion } from "../logic/cantrip-state.js";
 
-
+// =============================================
+// 1. Update Actor Hook (unchanged — this is fine)
+// =============================================
 Hooks.on("updateActor", async (actor, changes, options) => {
   if (!actor || actor.type !== "character") return;
 
@@ -12,18 +17,13 @@ Hooks.on("updateActor", async (actor, changes, options) => {
 
   debugLog("updateActor fired for", actor.name, "with changes:", changes);
 
-  /* ============================================ */
-  /* 1. Force sync on ANY external update         */
-  /*    (This is the DDB import fix)              */
-  /* ============================================ */
+  /* 1. Force sync on ANY external update */
   if (!isOurUpdate) {
     await syncResource(actor);
     await syncConversionResource(actor);
   }
 
-  /* ============================================ */
-  /* 2. Resource Clamping Refresh                 */
-  /* ============================================ */
+  /* 2. Resource Clamping Refresh */
   const newValue = foundry.utils.getProperty(changes, "system.resources.secondary.value");
   if (newValue !== undefined) {
     const max = actor.system.resources.secondary?.max ?? 0;
@@ -35,9 +35,7 @@ Hooks.on("updateActor", async (actor, changes, options) => {
     }
   }
 
-  /* ============================================ */
-  /* 3. Favorites Protection — Secondary Resource */
-  /* ============================================ */
+  /* 3. Favorites Protection */
   if (foundry.utils.hasProperty(changes, "system.favorites")) {
     const favorites = actor.system.favorites ?? [];
     const hasSecondary = favorites.some(f =>
@@ -60,24 +58,19 @@ Hooks.on("updateActor", async (actor, changes, options) => {
         { "system.favorites": updatedFavorites },
         { cantripCounterRestore: true }
       );
-      // Continue processing (do not early return)
     }
   }
 
-  /* ============================================ */
-  /* 4. Prevent loops on our own updates          */
-  /* ============================================ */
+  /* 4. Prevent loops on our own updates */
   if (isOurUpdate) {
     debugLog("Exiting updateActor (our own sync update)");
     return;
   }
 
-  /* ============================================ */
-  /* 5. Spellcasting Ability Change               */
-  /* ============================================ */
+  /* 5. Spellcasting Ability Change */
   const abilitiesUpdate = foundry.utils.getProperty(changes, "system.abilities");
   if (abilitiesUpdate) {
-    const abilityScore = getSpellcastingAbilityScore(actor);
+    const abilityScore = getSpellcastingAbilityScore(actor); // assuming this exists
     if (abilityScore === null || abilityScore === undefined) return;
 
     const resource = actor.system.resources?.secondary;
@@ -101,105 +94,58 @@ Hooks.on("updateActor", async (actor, changes, options) => {
   debugLog("Exiting consolidated updateActor hook for", actor.name);
 });
 
-Hooks.on("dnd5e.preUseActivity", async (activity, config, options) => {
+// =============================================
+// 2. Modern Consumption Hook (ONLY ONE)
+// =============================================
+Hooks.on("dnd5e.preUseActivity", async (activity, usageConfig, messageConfig) => {
   debugLog("Fired dnd5e.preUseActivity with activity:", activity.type);
 
-  const item = activity?.item; 
-  const actor = activity?.actor;
+  const item = activity?.item;
+  if (!item || item.type !== "spell" || item.system.level !== 0) return;
 
-  if (!item || !actor || actor.type !== "character") return;
-  if (item.type !== "spell" || item.system.level !== 0) return;
+  const actor = activity.actor;
+  if (!actor) return;
 
   /* ---- Allow Exceptions ---- */
   if (item.system.source?.type === "scroll") return;
   if (item.system.preparation?.mode === "atwill") return;
   if (item.system.uses?.max > 0) return;
 
-  /* ---- Force sync before check (critical for DDB imports) ---- */
+  /* ---- Sync and check remaining uses ---- */
   await syncResource(actor);
 
   if (!hasRemainingCantripUses(actor)) {
     debugLog("No remaining cantrips for actor:", actor.name);
     ui.notifications.warn(`${actor.name} has no remaining cantrip uses.`);
-    return false; // Cancels the activity
+    return false;
   }
-});
 
-Hooks.on("dnd5e.preUseItem", async (item) => {
+  // Consume using your dedicated function
+  const consumed = await consumeCantrip(actor);
 
-  if (!item) return;
-  if (item.type !== "spell") return;
-  if (item.system.level !== 0) return;
+  if (consumed) {
+    debugLog(`Consumed 1 cantrip use for ${item.name}`);
 
-  const actor = item.actor;
-  if (!actor?.hasPlayerOwner) return;
-
-  await syncResource(actor);
-  await syncConversionResource(actor);
-
-  const resource = actor.system.resources.secondary;
-  const remaining = resource.value ?? 0;
-
-  if (remaining <= 0) {
-    ui.notifications.warn(`${actor.name} has no cantrip uses remaining!`);
+    // Tell the core system consumption occurred (prevents weird UI/timing issues)
+    usageConfig.consumeResource = true;
+    usageConfig.resource = {
+      type: "secondary",
+      value: 1
+    };
+  } else {
     return false;
   }
 });
 
-Hooks.on("createChatMessage", async (message) => {
+// =============================================
+// 3. Remove These Two Old Hooks Completely
+// =============================================
+// DELETE the entire dnd5e.preUseItem hook
+// DELETE the entire createChatMessage hook
 
-  if (!message?.flags?.dnd5e) return;
-
-  const itemData = message.flags.dnd5e.item;
-  const messageType = message.flags.dnd5e.messageType;
-
-  if (!itemData) return;
-  if (messageType !== "usage") return;
-  if (itemData.type !== "spell") return;
-
-  const item = await fromUuid(itemData.uuid);
-  if (!item) return;
-
-  if (item.system.level !== 0) return;
-
-  const actor = item.actor;
-  if (!actor?.hasPlayerOwner) return;
-
-  await syncResource(actor);
-  await syncConversionResource(actor);
-
-  const resource = actor.system.resources.secondary;
-  const current = resource.value ?? 0;
-  const max = resource.max ?? 0;
-
-  if (current <= 0) return;
-
-  const newValue = Math.max(0, current - 1);
-
-  await actor.update({
-    "system.resources.secondary.value": newValue
-  });
-
-  ChatMessage.create({
-    speaker: ChatMessage.getSpeaker({ actor }),
-    content: `
-      <p>
-        <strong>${actor.name}</strong> casts 
-        <em>${item.name}</em>.
-        <br>
-        <small>Cantrip Uses Remaining: ${newValue}/${max}</small>
-      </p>
-    `,
-    style: CONST.CHAT_MESSAGE_STYLES.OTHER
-  });
-
-  debugLog(`Cantrip used by ${actor.name}. Remaining: ${newValue}/${max}`);
-});
-
+// Keep these (they are harmless / useful):
 Hooks.on("renderActorSheet5eCharacter", (app, html) => {
-  const secondaryInput = html.find(
-    'input[name="system.resources.secondary.label"]'
-  );
+  const secondaryInput = html.find('input[name="system.resources.secondary.label"]');
   if (secondaryInput.val() === "Cantrip Uses") {
     secondaryInput.prop("disabled", true);
   }
@@ -207,17 +153,11 @@ Hooks.on("renderActorSheet5eCharacter", (app, html) => {
 
 Hooks.on("dnd5e.restCompleted", async (actor, data) => {
   if (actor.type !== "character") return;
-
-  const hasSpellcasting = !!actor.system?.attributes?.spellcasting;
-  if (!hasSpellcasting) return;
+  if (!actor.system?.attributes?.spellcasting) return;
 
   await syncResource(actor);
   await syncConversionResource(actor);
 });
-
-/* ============================================ */
-/*  Force Sheet Refresh                         */
-/* ============================================ */
 
 Hooks.on("cantripCounterRefreshUI", () => {
   for (const app of Object.values(ui.windows)) {
@@ -226,10 +166,6 @@ Hooks.on("cantripCounterRefreshUI", () => {
     }
   }
 });
-
-/* ============================================ */
-/*  Sheet Render Hook (Legacy + V2)            */
-/* ============================================ */
 
 Hooks.on("renderActorSheet5eCharacter", handleCantripSheetRender);
 Hooks.on("renderActorSheet5eCharacter2", handleCantripSheetRender);
@@ -289,10 +225,6 @@ async function handleCantripSheetRender(app) {
     }
   }
 }
-/* ============================================ */
-/*  ABILITY SCORE + SETTING HOOKS               */
-/* ============================================ */
-
 
 Hooks.on("updateSetting", async (setting) => {
   if (setting.key === `${MODULE_ID}.bonusCantrips`) {
@@ -303,20 +235,73 @@ Hooks.on("updateSetting", async (setting) => {
   }
 });
 
-function requestActorSheetRefresh(actor) {
+Hooks.on("dnd5e.preRollDamage", (config, dialogConfig, messageConfig) => {
 
-  debugLog("Fired requestActorSheetRefresh for actor:", actor);
+  debugLog("Fired dnd5e.preRollDamage with config:", config);
 
-  setTimeout(() => {
-    const apps = Object.values(actor.apps);
+  const activity = config.subject; // The Activity being rolled
+  if (!activity?.item) return;
 
-    debugLog("Actor apps:", apps);
+  const item = activity.item;
+  if (item.type !== "spell" || item.system.level !== 0) return; // Only level 0 spells (cantrips)
 
-    for (const app of apps) {
-      if (typeof app.render === "function") {
-        app.render(true);
+  const actor = item.actor;
+  if (actor?.system.resources?.secondary?.value <= 0) return;
+
+  const preventScaling = getActorSetting(actor, GLOBAL_SETTING.preventCantripScaling, GLOBAL_SETTING.preventCantripScaling);
+  debugLog("Checked actor preventScaling:", preventScaling);
+  if (!preventScaling) return;   // ← Early exit if setting is disabled
+
+  debugLog(`Processing preRollDamage for cantrip "${item.name}" by ${actor.name}`);
+
+  let modified = false;
+
+  if (activity.damage?.parts?.length) {
+    activity.damage.parts.forEach((part, index) => {
+      if (part.scaling?.mode === "whole" && part.scaling.number > 1) {
+        console.log(`[CantripLimiter] Resetting scaling on part ${index} of ${item.name}: ${part.scaling.number} → 1`);
+        part.scaling.number = 1;
+        modified = true;
       }
-    }
+    });
+  }
 
-  }, 0);
-} 
+  if (config.rolls?.length) {
+    config.rolls.forEach((rollConfig, rollIndex) => {
+      if (!rollConfig.parts?.length) return;
+
+      const newParts = [];
+
+      // Reconstruct each damage part using the (now reset) base values from the activity
+      activity.damage?.parts?.forEach((part) => {
+        if (!part) return;
+
+        const numDice = part.number ?? 1;
+        const die = part.denomination ?? "10"; // fallback (most cantrips use d10/d8)
+        const bonus = part.bonus ? ` + ${part.bonus}` : "";
+
+        // Preserve damage types if present in options
+        const type = rollConfig.options?.types?.[0] || "";
+
+        debugLog(`Reconstructing damage part for ${item.name}: ${numDice}d${die}${bonus} (type: ${type})`);
+
+        newParts.push(`${numDice}d${die}${bonus}`.trim());
+      });
+
+      if (newParts.length > 0 && JSON.stringify(newParts) !== JSON.stringify(rollConfig.parts)) {
+        debugLog(`Forcing parts for ${item.name}:`, rollConfig.parts, "→", newParts);
+        rollConfig.parts = newParts;
+        modified = true;
+      }
+
+      if (rollConfig.data) {
+        if (rollConfig.data.scaling) rollConfig.data.scaling = { increase: 0 };
+        if (rollConfig.data["scaling.increase"] !== undefined) rollConfig.data["scaling.increase"] = 0;
+      }
+    });
+  }
+
+  if (modified) {
+    debugLog(`Cantrip scaling fully prevented for ${item.name} — forced to 1st-level base damage.`);
+  }
+});

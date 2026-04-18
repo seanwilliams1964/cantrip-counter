@@ -21,6 +21,7 @@ export const GLOBAL_SETTING = Object.freeze({
   iconSize: "iconSize",
   maxConversionLevel: "maxConversionLevel",
   maxConversionsPerLongRest: "maxConversionsPerLongRest",
+  preventCantripScaling: "preventCantripScaling",
   schemaVersion: "schemaVersion",
   thresholdLow: "thresholdLow",
   thresholdMedium: "thresholdMedium"

@@ -63,10 +63,6 @@ export function getActorSetting(actor, key, worldSettingKey = null) {
   return normalizeHex(worldValue);
 }
 
-/* -------------------------------------------- */
-/* Normalize 8-digit HEX → 6-digit HEX          */
-/* -------------------------------------------- */
-
 function normalizeHex(value) {
 
   if (
