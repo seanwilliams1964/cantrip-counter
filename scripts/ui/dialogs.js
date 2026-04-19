@@ -1,7 +1,7 @@
 import { MODULE_ID, ACTOR_FLAG, GLOBAL_SETTING } from "../utilities/constants.js";
-import { debugLog } from "../utilities/debug.js";
+import { debugLogError, debugLog } from "../utilities/debug.js";
 import { getCostPerLevel, getMaxConversionLevel, hasReachedConversionCap } from "../logic/conversions.js";
-import { getActorSetting } from "../utilities/helpers.js";
+import { getActorSetting, getPactSlotLevel } from "../utilities/helpers.js";
 import { getRemainingConversions, getMaxConversions, consumeConversion } from "../logic/cantrip-state.js";
 
 const { ApplicationV2 } = foundry.applications.api;
@@ -42,7 +42,7 @@ class ActorConfigApp extends ApplicationV2 {
    * @returns {Promise<string|HTMLElement>} The rendered HTML or element
    * @protected
    */
-  async _renderHTML(context, options) {    
+async _renderHTML(context, options) {    
 
     if (!this.actor) {
       console.error("ActorConfigApp rendered without actor reference.");
@@ -203,16 +203,21 @@ class ConversionApp extends ApplicationV2 {
    * Generate the content HTML for this application
    * @protected
    */
+
   async _renderHTML(context, options) {
 
+    debugLog("ConversionApp renderHTML CALLED"); // this will confirm execution
+
     if (!this.actor) {
-      console.error("ConversionApp: actor is undefined.");
-      return;
+      debugLogError("ConversionApp: actor is undefined.");
+      return "";
     }
 
     const actor = this.actor;
     const remaining = getRemainingConversions(actor);
     const max = getMaxConversions(actor);
+
+    debugLog(`Remaining conversions: ${remaining} Max conversions: ${max}`);
 
     if (hasReachedConversionCap(actor)) {
       return `
@@ -222,75 +227,171 @@ class ConversionApp extends ApplicationV2 {
     }
 
     const remainingCantrips = actor.system.resources.secondary?.value ?? 0;
-    const spellData = actor.system.spells;
+    const spellData = actor.system.spells || {};
     const maxLevel = getMaxConversionLevel(actor);
     const costPerLevel = getCostPerLevel(actor);
+
+    debugLog(`Actor has ${remainingCantrips} cantrips remaining. Max conversion level: ${maxLevel}, Cost per level: ${costPerLevel}`);
+
+    const optionsList = [];
+
+   const isWarlock = this.#isWarlock(actor);
+
+    // Warlocks → pact slots only
+    if (isWarlock) {
+      const pactOption = this._buildPactSlotOption({
+        actor,
+        spellData,
+        remainingCantrips,
+        maxLevel,
+        costPerLevel
+      });
+
+      if (pactOption) optionsList.push(pactOption);
+    } 
+    // Non-warlocks → normal spell slots only
+    else {
+
+      const allFull = this.#areAllSpellSlotsFull(spellData, maxLevel);
+
+      if (allFull) {
+        return `
+          <p><strong>Available Cantrips:</strong> ${remainingCantrips}</p>
+          <hr>
+          <p style="color: var(--color-text-light-5);">
+            All spell slots are already full.
+          </p>
+        `;
+      }
+
+      optionsList.push(
+        ...this._buildSpellSlotOptions({
+          actor,
+          spellData,
+          remainingCantrips,
+          maxLevel,
+          costPerLevel
+        })
+      );
+    }
+
+    const validOptions = optionsList;
 
     let html = `
       <p><strong>Available Cantrips:</strong> ${remainingCantrips}</p>
       <hr>
     `;
 
-    let validOptionExists = false;
-
-    for (let level = 1; level <= maxLevel; level++) {
-      const slot = spellData[`spell${level}`];
-      if (!slot) continue;
-
-      const cost = level * costPerLevel;
-
-      if (slot.value < slot.max && remainingCantrips >= cost) {
-        validOptionExists = true;
-
-        html += `
-          <div style="margin-bottom:8px;">
-            <strong>Level ${level}</strong><br>
-            Slots: ${slot.value}/${slot.max}
-            <br>
-            <button data-action="restore" data-type="spell" data-level="${level}">
-              Restore 1 Slot (Cost ${cost})
-            </button>
-          </div>
-        `;
-      }
-    }
-
-    // Pact Slot Handling
-    const pact = spellData.pact;
-    if (pact && pact.max > 0) {
-      const pactLevel = Number.isInteger(pact.level) && pact.level > 0
-        ? pact.level
-        : this.actor.system.details?.spellLevel ?? 1;
-
-      if (pactLevel <= maxLevel) {
-        const pactCost = pactLevel * costPerLevel;
-
-        if (pact.value < pact.max && remainingCantrips >= pactCost) {
-          validOptionExists = true;
-
-          html += `
-            <div style="margin-bottom:8px;">
-              <strong>Pact Slot (Level ${pactLevel})</strong><br>
-              Slots: ${pact.value}/${pact.max}
-              <br>
-              <button data-action="restore" data-type="pact">
-                Restore 1 Pact Slot (Cost ${pactCost})
-              </button>
-            </div>
-          `;
-        }
-      }
-    }
-
-    if (!validOptionExists) {
+    if (validOptions.length === 0) {
       html += `
         <p style="color: var(--color-text-light-5);">
           No spell slots can currently be restored.
         </p>
       `;
+      return html;
+    }
+
+    for (const opt of validOptions) {
+      html += opt.html;
     }
 
     return html;
+  }
+
+  _buildSpellSlotOptions({ actor, spellData, remainingCantrips, maxLevel, costPerLevel }) {
+    const options = [];
+
+    for (let level = 1; level <= maxLevel; level++) {
+      const slot = spellData[`spell${level}`];
+      if (!slot) continue;
+
+      const isFull = slot.value >= slot.max;
+
+      // 🔴 Skip FULL slots entirely
+      if (isFull) continue;
+
+      const cost = level * costPerLevel;
+      const notEnoughCantrips = remainingCantrips < cost;
+      const enabled = !notEnoughCantrips;
+
+      let label = `Level ${level}`;
+
+      // Only show reason when it's the blocking factor
+      if (notEnoughCantrips) {
+        label += ` — Not enough cantrips (need ${cost})`;
+      }
+
+      options.push({
+        enabled,
+        html: this.#renderOptionHTML({
+          type: "spell",
+          level,
+          label,
+          value: slot.value,
+          max: slot.max,
+          cost,
+          enabled
+        })
+      });
+    }
+
+    return options;
+  }
+
+  _buildPactSlotOption({ actor, spellData, remainingCantrips, maxLevel, costPerLevel }) {
+    const pact = spellData.pact;
+    if (!pact || pact.max <= 0) return null;
+
+    // 🔹 Determine pact level
+    let pactLevel = 1;
+
+    if (Number.isInteger(pact.override) && pact.override >= 1) {
+      pactLevel = pact.override;
+    } 
+    else if (Number.isInteger(pact.level) && pact.level >= 1) {
+      pactLevel = pact.level;
+    } 
+    else {
+      const warlockClass = actor.items.find(item =>
+        item.type === "class" &&
+        (item.system?.identifier === "warlock" ||
+        item.name.toLowerCase().includes("warlock"))
+      );
+
+      const warlockLevel = warlockClass?.system?.levels ?? 1;
+      pactLevel = Math.min(maxLevel, Math.ceil(warlockLevel / 2) || 1);
+    }
+
+    // Respect max conversion level
+    if (pactLevel > maxLevel) return null;
+
+    const isFull = pact.value >= pact.max;
+
+    // 🔴 Skip FULL pact slots entirely
+    if (isFull) return null;
+
+    const cost = pactLevel * costPerLevel;
+    const notEnoughCantrips = remainingCantrips < cost;
+    const enabled = !notEnoughCantrips;
+
+    let label = `Pact Slot (Level ${pactLevel})`;
+
+    if (notEnoughCantrips) {
+      label += ` — Not enough cantrips (need ${cost})`;
+    }
+
+    return {
+      enabled,
+      html: this.#renderOptionHTML({
+        type: "pact",
+        level: pactLevel,
+        label,
+        value: pact.value,
+        max: pact.max,
+        cost,
+        enabled
+      })
+    };
   }
 
   /**
@@ -340,8 +441,17 @@ class ConversionApp extends ApplicationV2 {
       const slot = actor.system.spells[`spell${level}`];
       updates[`system.spells.spell${level}.value`] = slot.value + 1;
     } else if (type === "pact") {
+      
       const pact = actor.system.spells.pact;
-      const pactLevel = pact.level;
+      
+      let pactLevel = 1;
+      if (Number.isInteger(pact.override) && pact.override >= 1) {
+        pactLevel = pact.override;
+      } else if (Number.isInteger(pact.level) && pact.level >= 1) {
+        pactLevel = pact.level;
+      }
+
+      // fallback not needed here since we already validated in render
       cost = pactLevel * costPerLevel;
       updates["system.spells.pact.value"] = pact.value + 1;
     }
@@ -370,6 +480,68 @@ class ConversionApp extends ApplicationV2 {
 
     // Re-render to show updated state (remaining cantrips, disabled buttons, etc.)
     app.render(true);
+  }
+
+  #evaluateOption({ value, max, remainingCantrips, cost, labelBase }) {
+    const isFull = value >= max;
+    const notEnoughCantrips = remainingCantrips < cost;
+
+    let enabled = true;
+    let label = labelBase;
+    let reason = "";
+
+    if (isFull) {
+      enabled = false;
+      reason = "Slots are already full";
+    } else if (notEnoughCantrips) {
+      enabled = false;
+      reason = `Not enough cantrips (need ${cost})`;
+    }
+
+    if (!enabled) {
+      label = `${labelBase} — ${reason}`;
+    }
+
+    return { enabled, label, reason };
+  }
+
+  #isWarlock(actor) {
+    return actor.items.some(item =>
+      item.type === "class" &&
+      (item.system?.identifier === "warlock" ||
+      item.name.toLowerCase().includes("warlock"))
+    );
+  }
+
+  #areAllSpellSlotsFull(spellData, maxLevel) {
+    for (let level = 1; level <= maxLevel; level++) {
+      const slot = spellData[`spell${level}`];
+      if (!slot) continue;
+      if (slot.value < slot.max) return false;
+    }
+    return true;
+  }
+
+  #renderOptionHTML({ type, level, label, value, max, cost, enabled }) {
+    return `
+      <div style="margin-bottom:8px;">
+        <strong>${label}</strong>       
+        ${
+          enabled
+            ? `<br>
+            Slots: ${value}/${max}
+            <br>
+              <button 
+                data-action="restore" 
+                data-type="${type}" 
+                ${level ? `data-level="${level}"` : ""}
+              >
+                Restore 1 ${type === "pact" ? "Pact Slot" : `Level ${level} Slot`} (Cost ${cost})
+              </button>`
+            : ""
+        }
+      </div>
+    `;
   }
 }
 
@@ -414,7 +586,7 @@ class ActorColorConfigApp extends ApplicationV2 {
   async _renderHTML(context, options) {
 
     if (!this.actor) {
-      console.error("ActorColorConfigApp: actor is undefined.");
+      debugLogError("ActorColorConfigApp: actor is undefined.");
       return;
     }
 
@@ -546,7 +718,7 @@ class ResetConfirmationApp extends ApplicationV2 {
   async _renderHTML(context, options) {
 
     if (!this.actor) {
-      console.error("ResetConfirmationApp: actor is undefined.");
+      debugLogError("ResetConfirmationApp: actor is undefined.");
       return;
     }
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.3.0] - 2026-04-16 – Turn Off Cantrip Scaling
+- New setting in the global settings to turn off scaling
+- All cantrips cast as L1 when it is enabled
+- Cleanup of how resources are tracked.
+- Fixed issues with creating new PC and having resources set
+- Minor fix for when the PC spellcasting attribute changes 
+
 ## [2.2.3] - 2026-04-16 – D&D Beyond Import Resilience & V2 Sheet Polish
 
 ### Fixed

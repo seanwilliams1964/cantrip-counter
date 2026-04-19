@@ -1,9 +1,10 @@
 import { MODULE_ID, DEFAULT_MAX_CONVERSION_LEVEL, ACTOR_FLAG, GLOBAL_SETTING } from "../utilities/constants.js";
-import { openConversionDialog, openActorConfigDialog, openActorColorConfig } from "./dialogs.js";
-import { getActorSetting } from "../utilities/helpers.js";
-import { getRemainingConversions } from "../logic/cantrip-state.js";
+import { getActorSetting, getPactSlotLevel } from "../utilities/helpers.js";
+import { getSecondaryResourceRowFromRoot } from "../utilities/utility.js";
 import { debugLog } from "../utilities/debug.js";
+import { getRemainingConversions } from "../logic/cantrip-state.js";
 import { isConversionEnabled, getMaxConversionsPerLongRest, getCostPerLevel } from "../logic/conversions.js";
+import { openConversionDialog, openActorConfigDialog, openActorColorConfig } from "./dialogs.js";
 
 /* ============================================ */
 /*  Apply Cantrip Logic                         */
@@ -155,11 +156,9 @@ export async function requestActorSheetRefresh(actor) {
   }, 0);
 } 
 
-/* ============================================ */
-/*  Color Logic                                 */
-/* ============================================ */
-
 function updateCantripResourceColor(html, actor) {
+
+  debugLog("Firing updateCantripResourceColor for actor:", actor);
 
   const resource = actor?.system?.resources?.secondary;
   if (!resource) return null;
@@ -201,23 +200,22 @@ function updateCantripResourceColor(html, actor) {
 
 function updateConversionGlow(html, actor, glowColor) {
 
+  debugLog("Firing updateConversionGlow for actor and DOM", { actor, html });
+
   if (!isConversionEnabled(actor)) return;
 
-  const resourceRow = html.querySelector(
-    'li.resource[data-favorite-id="resources.secondary"]'
-  );
+  debugLog(`Conversion is enabled for actor: ${actor.name}`);
+
+  const resourceRow = getSecondaryResourceRowFromRoot(html);
   if (!resourceRow) return;
 
-  const maxConversions = getMaxConversionsPerLongRest(actor);
-  const conversionsRemaining = getRemainingConversions(actor);
+  debugLog("Applying conversion glow logic for actor:", actor);
 
-  if (maxConversions > 0 && conversionsRemaining <= 0) {
-    resourceRow.style.boxShadow = "";
-    return;
-  }
+  resourceRow.dataset.cantripCounter = "true";
 
+  // Gather all required data first
   const remaining = actor.system.resources.secondary?.value ?? 0;
-  const spellData = actor.system.spells;
+  const spellData = actor.system.spells || {};
   const costPerLevel = getCostPerLevel(actor);
 
   let maxLevel = getActorSetting(actor, ACTOR_FLAG.maxConversionLevel, GLOBAL_SETTING.maxConversionLevel);
@@ -225,23 +223,52 @@ function updateConversionGlow(html, actor, glowColor) {
   if (!Number.isInteger(maxLevel) || maxLevel <= 0)
     maxLevel = DEFAULT_MAX_CONVERSION_LEVEL;
 
+  const maxConversions = getMaxConversionsPerLongRest(actor);
+  const conversionsRemaining = getRemainingConversions(actor);
+
   let canConvert = false;
 
-  for (let level = 1; level <= maxLevel; level++) {
+  // First check: daily conversion cap
+  if (maxConversions > 0 && conversionsRemaining <= 0) {
+    debugLog("Conversion glow blocked: daily conversion cap reached");
+  } 
+  // Second check: have enough cantrips for at least a level 1 conversion
+  else if (remaining >= costPerLevel) {
+    debugLog(`Has sufficient cantrips (${remaining}) for level 1 conversion (cost: ${costPerLevel})`);
 
-    const slot = spellData?.[`spell${level}`];
-    if (!slot) continue;
-
-    const cost = level * costPerLevel;
-
-    if (slot.value < slot.max && remaining >= cost) {
-      canConvert = true;
-      break;
+    // Check regular spell slots (spell1 to spell9 / maxLevel)
+    let foundOpenSlot = false;
+    for (let level = 1; level <= maxLevel; level++) {
+      const slot = spellData[`spell${level}`];
+      if (slot && slot.value < slot.max) {
+        foundOpenSlot = true;
+        debugLog(`Found open regular slot at level ${level} (${slot.value}/${slot.max}) - enabling glow`);
+        break;
+      }
     }
+
+    // Also check the Pact slot (critical for Warlocks)
+    if (!foundOpenSlot) {
+      const pact = spellData.pact;
+      if (pact && pact.value < pact.max) {
+        const pactLevel = getPactSlotLevel(actor, maxLevel);
+        foundOpenSlot = true;
+        debugLog(`Found open pact slot (Level ${pactLevel}, ${pact.value}/${pact.max}) - enabling glow`);
+      }
+    }
+
+    if (foundOpenSlot) {
+      canConvert = true;
+    } else {
+      debugLog(`No open spell slots (regular or pact) found up to level ${maxLevel}`);
+    }
+  } 
+  else {
+    debugLog(`Insufficient cantrips for conversion (have ${remaining}, need at least ${costPerLevel})`);
   }
 
+  // Apply glow or clear it
   if (canConvert && glowColor) {
-
     const r = parseInt(glowColor.slice(1, 3), 16);
     const g = parseInt(glowColor.slice(3, 5), 16);
     const b = parseInt(glowColor.slice(5, 7), 16);
@@ -249,12 +276,16 @@ function updateConversionGlow(html, actor, glowColor) {
     resourceRow.style.boxShadow =
       `0 0 8px 2px rgba(${r}, ${g}, ${b}, 0.8)`;
 
+    debugLog(`Applied conversion glow to resource row for ${actor.name}`);
   } else {
     resourceRow.style.boxShadow = "";
+    debugLog(`Cleared conversion glow for resource row (canConvert: ${canConvert})`);
   }
 }
 
 function updateGearGlow(html, actor, glowColor) {
+
+  debugLog("Firing updateGearGlow for actor:", actor);
 
   const gear = html.querySelector(".cantrip-config-gear");
   if (!gear) return;
@@ -274,15 +305,47 @@ function updateGearGlow(html, actor, glowColor) {
   const maxConversions = getMaxConversionsPerLongRest(actor);
   const conversionsRemaining = getRemainingConversions(actor);
 
-  const conversionBlocked =
-    current < minCost ||
-    (maxConversions > 0 && conversionsRemaining <= 0);
-
-  if (conversionBlocked) {
+  // Early block on insufficient cantrips or daily cap
+  if (current < minCost || (maxConversions > 0 && conversionsRemaining <= 0)) {
     gear.style.boxShadow = "";
     return;
   }
 
-  gear.style.boxShadow = `0 0 6px 2px ${glowColor}`;
-}
+  // === NEW: Check for at least one open spell slot (regular or pact) ===
+  const spellData = actor.system.spells || {};
+  let maxLevel = getActorSetting(actor, ACTOR_FLAG.maxConversionLevel, GLOBAL_SETTING.maxConversionLevel);
 
+  if (!Number.isInteger(maxLevel) || maxLevel <= 0)
+    maxLevel = DEFAULT_MAX_CONVERSION_LEVEL;
+
+  let hasOpenSlot = false;
+
+  // Check regular spell slots (spell1 to spell9 / maxLevel)
+  for (let level = 1; level <= maxLevel; level++) {
+    const slot = spellData[`spell${level}`];
+    if (slot && slot.value < slot.max) {
+      hasOpenSlot = true;
+      debugLog(`Gear glow: Found open regular slot at level ${level} (${slot.value}/${slot.max})`);
+      break;
+    }
+  }
+
+  // Also check the Pact slot (critical for Warlocks)
+  if (!hasOpenSlot) {
+    const pact = spellData.pact;
+    if (pact && pact.value < pact.max) {
+      hasOpenSlot = true;
+      debugLog(`Gear glow: Found open pact slot (${pact.value}/${pact.max})`);
+    }
+  }
+
+  if (!hasOpenSlot) {
+    debugLog(`Gear glow blocked: No open spell slots (regular or pact) found up to level ${maxLevel}`);
+    gear.style.boxShadow = "";
+    return;
+  }
+
+  // If we reach here: enough cantrips + daily cap ok + at least one open slot
+  gear.style.boxShadow = `0 0 6px 2px ${glowColor}`;
+  debugLog(`Applied glow to cantrip config gear for ${actor.name}`);
+}

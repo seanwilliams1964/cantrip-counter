@@ -1,6 +1,7 @@
 import { getActorSetting } from "../utilities/helpers.js";
 import { ACTOR_FLAG, GLOBAL_SETTING } from "../utilities/constants.js";
 import { getRemainingConversions } from "./cantrip-state.js";
+import { debugLog } from "../utilities/debug.js";
 
 /* -------------------------------------------- */
 /* Conversion Cost Per Spell Level              */
@@ -51,6 +52,9 @@ export function hasReachedConversionCap(actor) {
 /* -------------------------------------------- */
 
 export function isConversionEnabled(actor) {
+  console.log("TRACE: isConversionEnabled called");
+  debugLog("Checking if conversion is enabled for actor:", actor);
+  
   return getActorSetting(
     actor,
     ACTOR_FLAG.overrideEnabled,

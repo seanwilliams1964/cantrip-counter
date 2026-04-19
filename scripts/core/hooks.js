@@ -4,7 +4,7 @@ import { getRenderedSheetRoot } from "../utilities/utility.js";
 import { applyCantripLogic, requestActorSheetRefresh } from "../ui/ui.js";  
 import { GLOBAL_SETTING, MODULE_ID, RESOURCE_LABEL } from "../utilities/constants.js";
 import { debugLog } from "../utilities/debug.js";
-import { getActorSetting } from "../utilities/helpers.js";
+import { getActorSpellcastingChanges, getActorSetting } from "../utilities/helpers.js";
 import { consumeCantrip, consumeConversion } from "../logic/cantrip-state.js";
 
 // =============================================
@@ -68,8 +68,9 @@ Hooks.on("updateActor", async (actor, changes, options) => {
   }
 
   /* 5. Spellcasting Ability Change */
-  const abilitiesUpdate = foundry.utils.getProperty(changes, "system.abilities");
-  if (abilitiesUpdate) {
+  const abilityChanged = getActorSpellcastingChanges(actor, changes);
+
+  if (abilityChanged) {
     const abilityScore = getSpellcastingAbilityScore(actor); // assuming this exists
     if (abilityScore === null || abilityScore === undefined) return;
 
