@@ -1,6 +1,6 @@
-import { debugLog } from "../utilities/debug.js";
-import { getSpellcastingAbilityScore } from "../utilities/helpers.js";
 import { RESOURCE_LABEL } from "../utilities/constants.js";
+import { debugLog } from "../utilities/debug.js";
+import { getSpellcastingAbilityScore, hasCantripCounterEligibility } from "../utilities/helpers.js";
 import { getMaxConversionsPerLongRest } from "./conversions.js";
 
 /* ============================================ */
@@ -53,7 +53,7 @@ export async function syncResource(actor) {
 export async function syncConversionResource(actor) {
   if (!actor || actor.type !== "character") return;
 
-  const hasSpellcasting = !!actor.system?.attributes?.spellcasting;
+  const hasSpellcasting = hasCantripCounterEligibility(actor);
   const desiredMax = getMaxConversionsPerLongRest(actor) ?? 0;
 
   const currentTertiary = actor.system.resources?.tertiary;

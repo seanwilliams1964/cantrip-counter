@@ -1,11 +1,19 @@
-import { hasRemainingCantripUses, syncResource, syncConversionResource } from "../logic/resources.js";
-import { getSpellcastingAbilityScore } from "../utilities/helpers.js";
-import { getRenderedSheetRoot } from "../utilities/utility.js";
-import { applyCantripLogic, requestActorSheetRefresh } from "../ui/ui.js";  
+import { consumeCantrip } from "../logic/cantrip-state.js";
+import {
+  hasRemainingCantripUses,
+  syncConversionResource,
+  syncResource
+} from "../logic/resources.js";
+import { applyCantripLogic } from "../ui/ui.js";
 import { GLOBAL_SETTING, MODULE_ID, RESOURCE_LABEL } from "../utilities/constants.js";
 import { debugLog } from "../utilities/debug.js";
-import { getActorSpellcastingChanges, getActorSetting } from "../utilities/helpers.js";
-import { consumeCantrip, consumeConversion } from "../logic/cantrip-state.js";
+import {
+  getActorSetting,
+  getActorSpellcastingChanges,
+  getSpellcastingAbilityScore,
+  hasCantripCounterEligibility
+} from "../utilities/helpers.js";
+import { getRenderedSheetRoot } from "../utilities/utility.js";
 
 // =============================================
 // 1. Update Actor Hook (unchanged — this is fine)
@@ -44,7 +52,7 @@ Hooks.on("updateActor", async (actor, changes, options) => {
 
     const secondary = actor.system.resources?.secondary;
     const isCantripResource = secondary?.label === RESOURCE_LABEL.cantripUses;
-    const hasSpellcasting = !!actor.system?.attributes?.spellcasting;
+    const hasSpellcasting = hasCantripCounterEligibility(actor);
 
     if (!hasSecondary && isCantripResource && hasSpellcasting && !options?.cantripCounterRestore) {
       debugLog(`Secondary resource (Cantrip Uses) missing from favorites — restoring for ${actor.name}`);
@@ -182,22 +190,30 @@ async function handleCantripSheetRender(app) {
   await syncResource(actor);
   await syncConversionResource(actor);
 
+  const secondary = actor.system.resources?.secondary;
+  const isCantripResource = secondary?.label === RESOURCE_LABEL.cantripUses;
+
+  if (!isCantripResource) {
+    debugLog(`Skipping Cantrip Counter UI for ${actor.name}; secondary resource not initialized.`);
+    return;
+  }
+
   const root = await getRenderedSheetRoot(app);
   if (!root) {
     debugLog(`No root element found for ${actor.name}`);
     return;
   }
 
-  const hasSpellcasting = !!actor.system?.attributes?.spellcasting;
+  const hasSpellcasting = hasCantripCounterEligibility(actor);
 
   // Broader selector as fallback (V2 sheet sometimes uses different structure)
   let secondaryResource = root.querySelector('li.resource[data-favorite-id="resources.secondary"]');
   if (!secondaryResource) {
-    secondaryResource = root.querySelector('li.resource[data-resource="secondary"]') || 
-                        Array.from(root.querySelectorAll('li.resource')).find(li => 
-                          li.textContent.includes("Cantrip Uses") || 
-                          li.querySelector('input[name*="secondary"]')
-                        );
+    secondaryResource = root.querySelector('li.resource[data-resource="secondary"]') ||
+      Array.from(root.querySelectorAll('li.resource')).find(li =>
+        li.textContent.includes("Cantrip Uses") ||
+        li.querySelector('input[name*="secondary"]')
+      );
   }
 
   const tertiaryResource = root.querySelector('li.resource[data-favorite-id="resources.tertiary"]');
@@ -213,7 +229,7 @@ async function handleCantripSheetRender(app) {
     applyCantripLogic(app, root, secondaryResource);
     debugLog(`✅ Applied cantrip logic to secondary resource for ${actor.name}`);
   } else {
-    debugLog(`❌ Secondary resource element NOT found in DOM for ${actor.name}. Current HTML snippet:`, 
+    debugLog(`❌ Secondary resource element NOT found in DOM for ${actor.name}. Current HTML snippet:`,
       root.querySelector('.favorites') ? root.querySelector('.favorites').outerHTML.substring(0, 300) : "No .favorites section");
   }
 

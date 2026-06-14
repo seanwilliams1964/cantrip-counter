@@ -1,5 +1,6 @@
 import { MODULE_ID, RESOURCE_LABEL } from "../utilities/constants.js";
 import { debugLog } from "../utilities/debug.js";
+import { hasCantripCounterEligibility } from "../utilities/helpers.js";
 
 /**
  * Defensive Migration
@@ -30,7 +31,7 @@ export async function runDefensiveMigration() {
   for (const actor of actors) {
 
     const hasSpellcasting =
-      !!actor.system?.attributes?.spellcasting;
+      hasCantripCounterEligibility(actor);
 
     // We only clean non-spellcasters
     if (hasSpellcasting) continue;

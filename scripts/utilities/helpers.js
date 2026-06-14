@@ -1,10 +1,9 @@
-import { MODULE_ID, GLOBAL_SETTING } from "../utilities/constants.js";
-import { debugLogError, debugLog } from "./debug.js";  
 import { openConversionDialog } from "../ui/dialogs.js";
+import { GLOBAL_SETTING, MODULE_ID } from "../utilities/constants.js";
+import { debugLog, debugLogError } from "./debug.js";
 
 export function getSpellcastingAbilityScore(actor) {
-
-  const abilityKey = actor.system.attributes.spellcasting;
+  const abilityKey = getCantripCounterAbilityKey(actor);
   if (!abilityKey) return null;
 
   const ability = actor.system.abilities[abilityKey];
@@ -33,10 +32,10 @@ export function getPactSlotLevel(actor, maxLevel = 9) {
   }
 
   // Fallback: derive from Warlock class level
-  const warlockClass = actor.items.find(item => 
-    item.type === "class" && 
-    (item.system?.identifier === "warlock" || 
-     item.name.toLowerCase().includes("warlock"))
+  const warlockClass = actor.items.find(item =>
+    item.type === "class" &&
+    (item.system?.identifier === "warlock" ||
+      item.name.toLowerCase().includes("warlock"))
   );
 
   const warlockLevel = warlockClass?.system?.levels ?? 1;
@@ -45,7 +44,7 @@ export function getPactSlotLevel(actor, maxLevel = 9) {
 
 export function getActorSetting(actor, key, worldSettingKey = null) {
 
-  debugLog(`getActorSetting → key: ${key}, actor:`, actor);
+  debugLog(`getActorSetting → key: ${key}, actor:`, actor.name);
 
   /* -------------------------------------------- */
   /* Validate Actor                               */
@@ -128,10 +127,11 @@ export async function getActorSpellcastingChanges(actor, changes) {
 
   debugLog("getActorSpellcastingChanges: flatChanges →", flatChanges, "for actor:", actor.name);
 
-  const spellcastingAbility = actor.system.attributes.spellcasting;
+  const spellcastingAbility = getCantripCounterAbilityKey(actor);
+  if (!spellcastingAbility) return false;
 
   debugLog("getActorSpellcastingChanges: spellcastingAbility →", spellcastingAbility, "for actor:", actor.name);
- 
+
   debugLog("getActorSpellcastingChanges: checking for changes in", Object.keys(flatChanges), "for actor:", actor.name);
 
   const abilityChanged = Object.keys(flatChanges).some(key =>
@@ -141,4 +141,56 @@ export async function getActorSpellcastingChanges(actor, changes) {
   debugLog("getActorSpellcastingChanges: abilityChanged →", abilityChanged, "for actor:", actor.name);
 
   return abilityChanged;
+}
+
+export function hasCantripCounterEligibility(actor) {
+  if (!actor || actor.type !== "character") return false;
+
+  if (actor.system?.attributes?.spellcasting) return true;
+
+  return actor.items?.some(item => isSpellcastingFeat(item)) ?? false;
+}
+
+export function getCantripCounterAbilityKey(actor) {
+  if (!actor || actor.type !== "character") return null;
+
+  const actorSpellcasting = actor.system?.attributes?.spellcasting;
+  if (actorSpellcasting) return actorSpellcasting;
+
+  return getFeatSpellcastingAbilityKey(actor);
+}
+
+function getFeatSpellcastingAbilityKey(actor) {
+  const feats = actor.items?.filter(item => isSpellcastingFeat(item)) ?? [];
+
+  for (const feat of feats) {
+    const advancements = Object.values(feat.toObject().system?.advancement ?? {});
+
+    const spellChoice = advancements.find(adv =>
+      adv.type === "ItemChoice" &&
+      adv.configuration?.type === "spell" &&
+      adv.value?.ability &&
+      String(adv.configuration?.restriction?.level) !== "0"
+    );
+
+    const abilityKey = spellChoice?.value?.ability;
+
+    if (actor.system?.abilities?.[abilityKey]) {
+      return abilityKey;
+    }
+  }
+
+  return null;
+}
+
+function isSpellcastingFeat(item) {
+  if (!item || item.type !== "feat") return false;
+
+  const advancements = Object.values(item.toObject().system?.advancement ?? {});
+
+  return advancements.some(adv =>
+    adv.type === "ItemChoice" &&
+    adv.configuration?.type === "spell" &&
+    adv.value?.ability
+  );
 }

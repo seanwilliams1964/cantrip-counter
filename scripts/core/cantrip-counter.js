@@ -6,21 +6,22 @@
 
 // Core
 import {
-  MODULE_ID,
+  ACTOR_FLAG,
   CURRENT_SCHEMA_VERSION,
   GLOBAL_SETTING,
-  RESOURCE_LABEL,
-  ACTOR_FLAG
+  MODULE_ID,
+  RESOURCE_LABEL
 } from "../utilities/constants.js";
 
-import { debugLog } from "../utilities/debug.js";
 import { getMaxConversionsPerLongRest } from "../logic/conversions.js";
+import { debugLog } from "../utilities/debug.js";
 import { runDefensiveMigration } from "./migration.js";
 
-import "./settings.js";
-import "./hooks.js";
+import { syncConversionResource, syncResource } from "../logic/resources.js";
 import "../ui/ui.js";
-import { syncResource, syncConversionResource } from "../logic/resources.js";
+import { hasCantripCounterEligibility } from "../utilities/helpers.js";
+import "./hooks.js";
+import "./settings.js";
 
 /* ============================================ */
 /*  Ready Hook                                  */
@@ -56,14 +57,14 @@ Hooks.once("ready", async () => {
   }
 
   for (const actor of game.actors) {
-  if (actor.type !== "character") continue;
+    if (actor.type !== "character") continue;
 
-  const hasSpellcasting = !!actor.system?.attributes?.spellcasting;
-  if (!hasSpellcasting) continue;
+    const hasSpellcasting = hasCantripCounterEligibility(actor);
+    if (!hasSpellcasting) continue;
 
-  await syncResource(actor);
-  await syncConversionResource(actor);
-}
+    await syncResource(actor);
+    await syncConversionResource(actor);
+  }
 
   /* -------------------------------------------- */
   /* Non-GM Users                                */
@@ -108,8 +109,8 @@ async function runSchemaMigration(previousVersion) {
 
     if (actor.type !== "character") continue;
 
-    const hasSpellcasting = !!actor.system?.attributes?.spellcasting;
-    if(!hasSpellcasting) continue;
+    const hasSpellcasting = hasCantripCounterEligibility(actor);
+    if (!hasSpellcasting) continue;
 
     /* -------------------------------------------- */
     /* v2 Migration: Primary → Secondary            */
