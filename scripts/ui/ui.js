@@ -127,7 +127,13 @@ export async function applyCantripLogic(app, root, resourceElement) {
     // Color Palette button — attach directly to the Cantrip resource row
     const colorBtn = document.createElement("button");
     colorBtn.type = "button";
-    colorBtn.classList.add("gold-button", "cantrip-color-config");
+
+    if (tidyEditActive) {
+      colorBtn.classList.add("button", "button-icon-only", "button-gold", "cantrip-color-config");
+    } else {
+      colorBtn.classList.add("gold-button", "cantrip-color-config");
+    }
+
     colorBtn.innerHTML = `<i class="fas fa-palette"></i>`;
     colorBtn.title = "Configure Cantrip Resource Colors";
     colorBtn.style.marginLeft = "4px";
@@ -164,9 +170,16 @@ export async function applyCantripLogic(app, root, resourceElement) {
 
     const gear = document.createElement("button");
     gear.type = "button";
-    gear.classList.add("gold-button", "cantrip-config-gear");
-    gear.innerHTML = `<i class="fas fa-cog"></i>`;
-    gear.title = "Cantrip Conversion Settings";
+
+    if (tidyEditActive) {
+      gear.classList.add("button", "button-icon-only", "button-gold", "cantrip-config-gear");
+    }
+    else {
+      gear.classList.add("gold-button", "cantrip-config-gear");
+    }
+
+    gear.innerHTML = `<i class="fas fa-hat-wizard"></i>`;
+    gear.title = "Cantrip Counter Settings";
     gear.style.marginLeft = "4px";
 
     gear.addEventListener("click", (e) => {

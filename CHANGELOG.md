@@ -1,4 +1,7 @@
 # Changelog
+## [2.5.1] - 2026-06-18 – Tidy Sheet Compatibility
+- Added tweak to change the icon for the cantrip counter so it is not confused with other gear wheels
+
 ## [2.5.0] - 2026-06-17 – Tidy Sheet Compatibility
 - Added compatibility for Tidy Sheet 5E and Tidy Sheet 5E Classic
 

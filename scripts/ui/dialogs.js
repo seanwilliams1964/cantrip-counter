@@ -1,8 +1,8 @@
-import { MODULE_ID, ACTOR_FLAG, GLOBAL_SETTING } from "../utilities/constants.js";
-import { debugLogError, debugLog } from "../utilities/debug.js";
+import { consumeConversion, getMaxConversions, getRemainingConversions } from "../logic/cantrip-state.js";
 import { getCostPerLevel, getMaxConversionLevel, hasReachedConversionCap } from "../logic/conversions.js";
-import { getActorSetting, getPactSlotLevel } from "../utilities/helpers.js";
-import { getRemainingConversions, getMaxConversions, consumeConversion } from "../logic/cantrip-state.js";
+import { ACTOR_FLAG, GLOBAL_SETTING, MODULE_ID } from "../utilities/constants.js";
+import { debugLog, debugLogError } from "../utilities/debug.js";
+import { getActorSetting } from "../utilities/helpers.js";
 
 const { ApplicationV2 } = foundry.applications.api;
 
@@ -16,8 +16,8 @@ class ActorConfigApp extends ApplicationV2 {
     classes: ["dialog"],
     window: {
       frame: true,
-      title: "Cantrip Conversion Settings",
-      icon: "fas fa-cog",
+      title: "Custom Cantrip Counter Settings",
+      icon: "fas fa-hat-wizard",
       resizable: true
     },
     position: {
@@ -31,23 +31,23 @@ class ActorConfigApp extends ApplicationV2 {
   };
 
   constructor(actor, options = {}) {
-  super(options);
-  this.actor = actor;
-}
+    super(options);
+    this.actor = actor;
+  }
 
-/**
-   * Render the inner HTML content for this application.
-   * @param {ApplicationRenderContext} context - Rendering context data
-   * @param {ApplicationRenderOptions} options - Render options
-   * @returns {Promise<string|HTMLElement>} The rendered HTML or element
-   * @protected
-   */
-async _renderHTML(context, options) {    
+  /**
+     * Render the inner HTML content for this application.
+     * @param {ApplicationRenderContext} context - Rendering context data
+     * @param {ApplicationRenderOptions} options - Render options
+     * @returns {Promise<string|HTMLElement>} The rendered HTML or element
+     * @protected
+     */
+  async _renderHTML(context, options) {
 
     if (!this.actor) {
       console.error("ActorConfigApp rendered without actor reference.");
       return;
-    } 
+    }
 
     const actor = this.actor;
     const overrideEnabled = getActorSetting(actor, ACTOR_FLAG.overrideEnabled, GLOBAL_SETTING.overrideEnabled);
@@ -149,7 +149,7 @@ async _renderHTML(context, options) {
     app.close();
   }
 
-// Optional: Use _onRender (or _onFirstRender) instead of _onRender for initial forcing
+  // Optional: Use _onRender (or _onFirstRender) instead of _onRender for initial forcing
   _onRender(context, options) {
     super._onRender?.(context, options);
 
@@ -194,7 +194,7 @@ class ConversionApp extends ApplicationV2 {
     }
   };
 
- constructor(actor, options = {}) {
+  constructor(actor, options = {}) {
     super(options);
     this.actor = actor;
   }
@@ -235,7 +235,7 @@ class ConversionApp extends ApplicationV2 {
 
     const optionsList = [];
 
-   const isWarlock = this.#isWarlock(actor);
+    const isWarlock = this.#isWarlock(actor);
 
     // Warlocks → pact slots only
     if (isWarlock) {
@@ -248,7 +248,7 @@ class ConversionApp extends ApplicationV2 {
       });
 
       if (pactOption) optionsList.push(pactOption);
-    } 
+    }
     // Non-warlocks → normal spell slots only
     else {
 
@@ -347,15 +347,15 @@ class ConversionApp extends ApplicationV2 {
 
     if (Number.isInteger(pact.override) && pact.override >= 1) {
       pactLevel = pact.override;
-    } 
+    }
     else if (Number.isInteger(pact.level) && pact.level >= 1) {
       pactLevel = pact.level;
-    } 
+    }
     else {
       const warlockClass = actor.items.find(item =>
         item.type === "class" &&
         (item.system?.identifier === "warlock" ||
-        item.name.toLowerCase().includes("warlock"))
+          item.name.toLowerCase().includes("warlock"))
       );
 
       const warlockLevel = warlockClass?.system?.levels ?? 1;
@@ -441,9 +441,9 @@ class ConversionApp extends ApplicationV2 {
       const slot = actor.system.spells[`spell${level}`];
       updates[`system.spells.spell${level}.value`] = slot.value + 1;
     } else if (type === "pact") {
-      
+
       const pact = actor.system.spells.pact;
-      
+
       let pactLevel = 1;
       if (Number.isInteger(pact.override) && pact.override >= 1) {
         pactLevel = pact.override;
@@ -509,7 +509,7 @@ class ConversionApp extends ApplicationV2 {
     return actor.items.some(item =>
       item.type === "class" &&
       (item.system?.identifier === "warlock" ||
-      item.name.toLowerCase().includes("warlock"))
+        item.name.toLowerCase().includes("warlock"))
     );
   }
 
@@ -526,9 +526,8 @@ class ConversionApp extends ApplicationV2 {
     return `
       <div style="margin-bottom:8px;">
         <strong>${label}</strong>       
-        ${
-          enabled
-            ? `<br>
+        ${enabled
+        ? `<br>
             Slots: ${value}/${max}
             <br>
               <button 
@@ -538,8 +537,8 @@ class ConversionApp extends ApplicationV2 {
               >
                 Restore 1 ${type === "pact" ? "Pact Slot" : `Level ${level} Slot`} (Cost ${cost})
               </button>`
-            : ""
-        }
+        : ""
+      }
       </div>
     `;
   }
@@ -590,21 +589,21 @@ class ActorColorConfigApp extends ApplicationV2 {
       return;
     }
 
-  const actor = this.actor;
+    const actor = this.actor;
 
-  const templateData = {
-    glowLow: actor.getFlag(MODULE_ID, ACTOR_FLAG.glowLow) ?? "#ff0000",
-    glowMedium: actor.getFlag(MODULE_ID, ACTOR_FLAG.glowMedium) ?? "#ffff00",
-    glowHigh: actor.getFlag(MODULE_ID, ACTOR_FLAG.glowHigh) ?? "#00ff00",
-    thresholdLow: actor.getFlag(MODULE_ID, ACTOR_FLAG.thresholdLow) ?? 25,
-    thresholdMedium: actor.getFlag(MODULE_ID, ACTOR_FLAG.thresholdMedium) ?? 50
-  };
+    const templateData = {
+      glowLow: actor.getFlag(MODULE_ID, ACTOR_FLAG.glowLow) ?? "#ff0000",
+      glowMedium: actor.getFlag(MODULE_ID, ACTOR_FLAG.glowMedium) ?? "#ffff00",
+      glowHigh: actor.getFlag(MODULE_ID, ACTOR_FLAG.glowHigh) ?? "#00ff00",
+      thresholdLow: actor.getFlag(MODULE_ID, ACTOR_FLAG.thresholdLow) ?? 25,
+      thresholdMedium: actor.getFlag(MODULE_ID, ACTOR_FLAG.thresholdMedium) ?? 50
+    };
 
-  return await foundry.applications.handlebars.renderTemplate(
-    "modules/cantrip-counter/templates/actor-config.html",
-    templateData
-  );
-}
+    return await foundry.applications.handlebars.renderTemplate(
+      "modules/cantrip-counter/templates/actor-config.html",
+      templateData
+    );
+  }
 
   _replaceHTML(result, content, options) {
     if (typeof result === "string") {
@@ -626,7 +625,7 @@ class ActorColorConfigApp extends ApplicationV2 {
     const app = this;
     const actor = app.actor;
     const form = target.closest("form");
-  
+
     debugLog("Submitting color config form");
 
     /* Handle Standard Inputs (Color Pickers)   */
@@ -643,8 +642,8 @@ class ActorColorConfigApp extends ApplicationV2 {
 
       // Normalize 8-digit HEX to 6-digit
       if (typeof sanitized === "string" &&
-          sanitized.startsWith("#") &&
-          sanitized.length === 9) {
+        sanitized.startsWith("#") &&
+        sanitized.length === 9) {
         sanitized = sanitized.slice(0, 7);
       }
 
