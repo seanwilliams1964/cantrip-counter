@@ -20,7 +20,7 @@ export async function getRenderedSheetRoot(app) {
   // Longer wait for V2 sheet favorites (DDB imports make this flaky)
   for (let i = 0; i < 25; i++) {   // ~500ms max
     const secondary = root.querySelector('li.resource[data-favorite-id="resources.secondary"]') ||
-                      root.querySelector('li.resource');
+      root.querySelector('li.resource');
     if (secondary) {
       debugLog(`Favorites resource detected after ${i * 20}ms wait`);
       return root;
@@ -45,15 +45,56 @@ export async function querySheetAll(app, selector) {
 }
 
 export function getSecondaryResourceRowFromRoot(root) {
+  return getResourceRowFromRoot(root, "secondary", "Cantrip Uses");
+}
+
+export function getResourceRowFromRoot(root, key, label = null) {
   if (!root) return null;
 
-  const valueInput = root.querySelector(
-    'input[name="system.resources.secondary.value"], input.uninput.value'
-  );
+  const selectors = [
+    `li.resource[data-favorite-id="resources.${key}"]`,
+    `[data-favorite-id="resources.${key}"]`,
+    `[data-resource="${key}"]`,
+    `[data-resource-id="${key}"]`,
+    `.favorites .list-entry.favorite[data-favorite-id="resources.${key}"]`
+  ];
 
-  if (!valueInput) return null;
+  for (const selector of selectors) {
+    const found = root.querySelector(selector);
+    if (found) return found;
+  }
 
-  return valueInput.closest(
-    'li, .resource, .flexrow, .fav-item, [data-favorite-id]'
-  );
+  const input = root.querySelector(`input[name="system.resources.${key}.value"]`);
+  if (input) {
+    return input.closest(
+      'li.resource, [data-favorite-id], .list-entry.favorite, .resource, .favorite, div'
+    );
+  }
+
+  if (label) {
+    const tidyMatch = Array.from(root.querySelectorAll(".list-entry.favorite")).find(el =>
+      el.textContent?.trim().includes(label)
+    );
+    if (tidyMatch) return tidyMatch;
+  }
+
+  return null;
+}
+
+export function getResourceValueInput(resourceRow, key) {
+  if (!resourceRow) return null;
+
+  return resourceRow.querySelector(`input[name="system.resources.${key}.value"]`)
+    ?? resourceRow.querySelector('input.uninput.value')
+    ?? resourceRow.querySelector('input[type="number"]');
+}
+
+export function getResourceIconElement(resourceRow) {
+  if (!resourceRow) return null;
+
+  return resourceRow.querySelector("figure img")
+    ?? resourceRow.querySelector("img")
+    ?? resourceRow.querySelector(".item-image")
+    ?? resourceRow.querySelector(".favorite-image")
+    ?? resourceRow.querySelector("figure");
 }

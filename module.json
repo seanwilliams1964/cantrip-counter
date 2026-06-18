@@ -15,7 +15,9 @@
   "templates": [
     "templates/actor-config.html"
   ],
-  "styles": [],
+  "styles": [
+    "styles/cantrip-counter.css"
+  ],
   "compatibility": {
     "minimum": "13",
     "verified": "13"

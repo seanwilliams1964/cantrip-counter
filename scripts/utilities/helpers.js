@@ -194,3 +194,23 @@ function isSpellcastingFeat(item) {
     adv.value?.ability
   );
 }
+
+export function refreshTidyCantripResource(actor, resourceElement) {
+  if (!resourceElement?.matches?.(".cantrip-counter-tidy-resource")) return;
+
+  const resource = actor.system.resources.secondary;
+  const value = Number(resource.value ?? 0);
+  const max = Number(resource.max ?? 0);
+
+  const input = resourceElement.querySelector('input[name="system.resources.secondary.value"]');
+  const maxSpan = resourceElement.querySelector(".max");
+
+  if (input) {
+    input.value = value;
+    input.setAttribute("value", String(value));
+  }
+
+  if (maxSpan) {
+    maxSpan.textContent = String(max);
+  }
+}

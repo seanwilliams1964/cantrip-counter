@@ -4,16 +4,17 @@ import {
   syncConversionResource,
   syncResource
 } from "../logic/resources.js";
-import { applyCantripLogic } from "../ui/ui.js";
+import { applyCantripLogic, injectTidyCantripResource } from "../ui/ui.js";
 import { GLOBAL_SETTING, MODULE_ID, RESOURCE_LABEL } from "../utilities/constants.js";
 import { debugLog } from "../utilities/debug.js";
 import {
   getActorSetting,
   getActorSpellcastingChanges,
   getSpellcastingAbilityScore,
-  hasCantripCounterEligibility
+  hasCantripCounterEligibility,
+  refreshTidyCantripResource
 } from "../utilities/helpers.js";
-import { getRenderedSheetRoot } from "../utilities/utility.js";
+import { getRenderedSheetRoot, getResourceRowFromRoot } from "../utilities/utility.js";
 
 // =============================================
 // 1. Update Actor Hook (unchanged — this is fine)
@@ -29,6 +30,18 @@ Hooks.on("updateActor", async (actor, changes, options) => {
   if (!isOurUpdate) {
     await syncResource(actor);
     await syncConversionResource(actor);
+  }
+
+  /* 1b. Refresh open sheets when tracked resources change */
+  if (
+    foundry.utils.hasProperty(changes, "system.resources.secondary.value") ||
+    foundry.utils.hasProperty(changes, "system.resources.secondary.max") ||
+    foundry.utils.hasProperty(changes, "system.resources.tertiary.value") ||
+    foundry.utils.hasProperty(changes, "system.resources.tertiary.max")
+  ) {
+    for (const app of Object.values(actor.apps ?? {})) {
+      if (typeof app.render === "function") app.render(false);
+    }
   }
 
   /* 2. Resource Clamping Refresh */
@@ -199,24 +212,64 @@ async function handleCantripSheetRender(app) {
   }
 
   const root = await getRenderedSheetRoot(app);
+
   if (!root) {
     debugLog(`No root element found for ${actor.name}`);
     return;
   }
 
+  console.log(
+    "[Cantrip Counter] Tidy favorites:",
+    Array.from(root.querySelectorAll(".list-entry.favorite")).map(el => ({
+      type: el.dataset.favoriteType,
+      id: el.dataset.favoriteId,
+      resource: el.dataset.resource,
+      text: el.textContent.trim().replace(/\s+/g, " ").slice(0, 120),
+      html: el.outerHTML.slice(0, 500)
+    }))
+  );
+
   const hasSpellcasting = hasCantripCounterEligibility(actor);
 
-  // Broader selector as fallback (V2 sheet sometimes uses different structure)
-  let secondaryResource = root.querySelector('li.resource[data-favorite-id="resources.secondary"]');
+  let secondaryResource = getResourceRowFromRoot(
+    root,
+    "secondary",
+    RESOURCE_LABEL.cantripUses
+  );
+
   if (!secondaryResource) {
-    secondaryResource = root.querySelector('li.resource[data-resource="secondary"]') ||
-      Array.from(root.querySelectorAll('li.resource')).find(li =>
-        li.textContent.includes("Cantrip Uses") ||
-        li.querySelector('input[name*="secondary"]')
-      );
+    const tidyFavoritesList =
+      root.querySelector('.tidy-tab.favorites .favorites.list, [data-tidy-sheet-part="tab-content"] .favorites.list') ||
+      root.querySelector('[data-tidy-favorites]');
+
+    if (tidyFavoritesList) {
+      delete root.dataset.cantripCounterRetryCount;
+
+      secondaryResource = injectTidyCantripResource(app, root, tidyFavoritesList);
+      debugLog(`✅ Injected Tidy-compatible Cantrip Uses UI for ${actor.name}`);
+    } else if (app.constructor.name?.includes("Tidy")) {
+      const retryCount = Number(root.dataset.cantripCounterRetryCount ?? 0);
+
+      if (retryCount < 10) {
+        root.dataset.cantripCounterRetryCount = String(retryCount + 1);
+
+        setTimeout(() => {
+          const liveRoot = document.getElementById(app.id);
+          if (liveRoot) handleCantripSheetRender(app);
+        }, 100);
+      } else {
+        debugLog(`Tidy resource container not found after retries for ${actor.name}; stopping retry loop.`);
+      }
+
+      return;
+    }
   }
 
-  const tertiaryResource = root.querySelector('li.resource[data-favorite-id="resources.tertiary"]');
+  let tertiaryResource = getResourceRowFromRoot(
+    root,
+    "tertiary",
+    RESOURCE_LABEL.dailyConversions
+  );
 
   if (!hasSpellcasting) {
     if (secondaryResource) secondaryResource.style.display = "none";
@@ -226,16 +279,23 @@ async function handleCantripSheetRender(app) {
 
   if (secondaryResource) {
     secondaryResource.style.display = "";
+    refreshTidyCantripResource(actor, secondaryResource);
+
     applyCantripLogic(app, root, secondaryResource);
+
     debugLog(`✅ Applied cantrip logic to secondary resource for ${actor.name}`);
   } else {
-    debugLog(`❌ Secondary resource element NOT found in DOM for ${actor.name}. Current HTML snippet:`,
-      root.querySelector('.favorites') ? root.querySelector('.favorites').outerHTML.substring(0, 300) : "No .favorites section");
+    debugLog(
+      `❌ Secondary resource element NOT found in DOM for ${actor.name}. Current HTML snippet:`,
+      root.querySelector(".favorites")
+        ? root.querySelector(".favorites").outerHTML.substring(0, 300)
+        : "No .favorites section"
+    );
   }
 
-  // Always hide our tertiary if present
   if (tertiaryResource) {
     const tertiaryLabel = (actor.system?.resources?.tertiary?.label || "").trim();
+
     if (tertiaryLabel === RESOURCE_LABEL.dailyConversions) {
       tertiaryResource.style.display = "none";
       debugLog(`Hid tertiary (Daily Conversions) for ${actor.name}`);

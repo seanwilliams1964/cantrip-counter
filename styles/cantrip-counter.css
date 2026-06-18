@@ -1,0 +1,38 @@
+.cantrip-counter-tidy-resource {
+    display: grid;
+    grid-template-columns: 32px 1fr auto;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.cantrip-counter-tidy-resource figure {
+    width: 32px;
+    height: 32px;
+    margin: 0;
+    flex: 0 0 32px;
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.cantrip-counter-tidy-resource figure img {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+    display: block;
+}
+
+.cantrip-counter-tidy-resource .info {
+    margin-left: auto;
+}
+
+.cantrip-counter-tidy-resource .primary.uses {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.cantrip-counter-tidy-resource input.uninput.value {
+    width: 2.5em;
+    text-align: right;
+}

@@ -1,4 +1,9 @@
 # Changelog
+## [2.5.0] - 2026-06-17 – Tidy Sheet Compatibility
+- Added compatibility for Tidy Sheet 5E and Tidy Sheet 5E Classic
+
+## [2.3.0] - 2026-06-13 – Enable Cantrips Counting For Feats
+- For non-spellcasters that take a spellcasting feat, the counter will now appear
 
 ## [2.3.0] - 2026-04-16 – Turn Off Cantrip Scaling
 - New setting in the global settings to turn off scaling
