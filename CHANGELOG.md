@@ -1,4 +1,7 @@
 # Changelog
+## [2.6.0] - 2026-06-19 – Tidy Sheet Compatibility
+- Updated how Pact Magic cantrip costs get calculated
+
 ## [2.5.1] - 2026-06-18 – Tidy Sheet Compatibility
 - Added tweak to change the icon for the cantrip counter so it is not confused with other gear wheels
 
