@@ -1,5 +1,5 @@
 import { consumeConversion, getMaxConversions, getRemainingConversions } from "../logic/cantrip-state.js";
-import { getCostPerLevel, getMaxConversionLevel, hasReachedConversionCap } from "../logic/conversions.js";
+import { getCostPerLevel, getMaxConversionLevel, getPactConversionCost, hasReachedConversionCap } from "../logic/conversions.js";
 import { ACTOR_FLAG, GLOBAL_SETTING, MODULE_ID } from "../utilities/constants.js";
 import { debugLog, debugLogError } from "../utilities/debug.js";
 import { getActorSetting } from "../utilities/helpers.js";
@@ -362,15 +362,12 @@ class ConversionApp extends ApplicationV2 {
       pactLevel = Math.min(maxLevel, Math.ceil(warlockLevel / 2) || 1);
     }
 
-    // Respect max conversion level
-    if (pactLevel > maxLevel) return null;
-
     const isFull = pact.value >= pact.max;
 
     // 🔴 Skip FULL pact slots entirely
     if (isFull) return null;
 
-    const cost = pactLevel * costPerLevel;
+    const cost = getPactConversionCost(pactLevel, costPerLevel);
     const notEnoughCantrips = remainingCantrips < cost;
     const enabled = !notEnoughCantrips;
 
@@ -422,64 +419,137 @@ class ConversionApp extends ApplicationV2 {
     const app = this;
     const actor = app.actor;
 
+    if (!actor) return;
+
     if (hasReachedConversionCap(actor)) {
       ui.notifications.warn("Conversion Limit Reached");
       return;
     }
 
     const type = target.dataset.type;
-    const level = parseInt(target.dataset.level);
-    const costPerLevel = getCostPerLevel(actor);
+    const level = Number.parseInt(target.dataset.level, 10);
+    const costPerLevel = Number(getCostPerLevel(actor) ?? 3);
 
-    let cost;
-    let updates = {};
+    const currentCantrips = Number(actor.system.resources.secondary?.value ?? 0);
+    const maxCantrips = Number(actor.system.resources.secondary?.max ?? 0);
 
-    const currentCantrips = actor.system.resources.secondary.value;
+    let cost = 0;
+    let pactLevel = null;
+    let restoredLabel = "";
+    const updates = {};
 
     if (type === "spell") {
+      if (!Number.isInteger(level) || level < 1) {
+        ui.notifications.warn("Invalid spell level selected.");
+        return;
+      }
+
+      const slot = actor.system.spells?.[`spell${level}`];
+
+      if (!slot) {
+        ui.notifications.warn(`No level ${level} spell slot data found.`);
+        return;
+      }
+
+      const slotValue = Number(slot.value ?? 0);
+      const slotMax = Number(slot.max ?? 0);
+
+      if (slotMax <= 0) {
+        ui.notifications.warn(`No level ${level} spell slots available.`);
+        return;
+      }
+
+      if (slotValue >= slotMax) {
+        ui.notifications.warn(`Level ${level} spell slots are already full.`);
+        return;
+      }
+
       cost = level * costPerLevel;
-      const slot = actor.system.spells[`spell${level}`];
-      updates[`system.spells.spell${level}.value`] = slot.value + 1;
-    } else if (type === "pact") {
 
-      const pact = actor.system.spells.pact;
+      if (currentCantrips < cost) {
+        ui.notifications.warn(`Not enough Cantrip Uses. Need ${cost}.`);
+        return;
+      }
 
-      let pactLevel = 1;
+      updates[`system.spells.spell${level}.value`] = slotValue + 1;
+      restoredLabel = `Level ${level} Slot`;
+    }
+
+    else if (type === "pact") {
+      const pact = actor.system.spells?.pact;
+
+      if (!pact) {
+        ui.notifications.warn("No Pact Magic data found.");
+        return;
+      }
+
+      const pactValue = Number(pact.value ?? 0);
+      const pactMax = Number(pact.max ?? 0);
+
+      if (pactMax <= 0) {
+        ui.notifications.warn("No Pact Magic slots available.");
+        return;
+      }
+
+      if (pactValue >= pactMax) {
+        ui.notifications.warn("Pact Magic slots are already full.");
+        return;
+      }
+
       if (Number.isInteger(pact.override) && pact.override >= 1) {
         pactLevel = pact.override;
       } else if (Number.isInteger(pact.level) && pact.level >= 1) {
         pactLevel = pact.level;
+      } else {
+        pactLevel = 1;
       }
 
-      // fallback not needed here since we already validated in render
-      cost = pactLevel * costPerLevel;
-      updates["system.spells.pact.value"] = pact.value + 1;
+      cost = getPactConversionCost(pactLevel, costPerLevel);
+
+      if (currentCantrips < cost) {
+        ui.notifications.warn(`Not enough Cantrip Uses. Need ${cost}.`);
+        return;
+      }
+
+      updates["system.spells.pact.value"] = pactValue + 1;
+      restoredLabel = `Pact Slot (Level ${pactLevel})`;
     }
 
-    updates["system.resources.secondary.value"] = currentCantrips - cost;
+    else {
+      ui.notifications.warn("Invalid conversion type selected.");
+      return;
+    }
+
+    const remaining = currentCantrips - cost;
+
+    updates["system.resources.secondary.value"] = remaining;
 
     await actor.update(updates);
     await consumeConversion(actor);
 
-    // Chat message
-    const remaining = currentCantrips - cost;
-    ChatMessage.create({
+    const formula =
+      type === "pact"
+        ? `Pact Level (${pactLevel}) + Cost Per Level (${costPerLevel})`
+        : `Spell Level (${level}) × Cost Per Level (${costPerLevel})`;
+
+    await ChatMessage.create({
       speaker: ChatMessage.getSpeaker({ actor }),
       content: `
-        <p>
-          <strong>${actor.name}</strong> converts cantrips into a
-          <strong>${type === "pact" ? "Pact Slot" : `Level ${level} Slot`}</strong>.
-          <br>
-          Cost: ${cost} cantrips
-          <br>
-          Remaining: ${remaining}/${actor.system.resources.secondary.max}
-        </p>
-      `,
+      <p>
+        <strong>${actor.name}</strong> converts cantrips into a
+        <strong>${restoredLabel}</strong>.
+        <br>
+        Cost: ${cost} Cantrip Uses
+        <br>
+        Formula: ${formula}
+        <br>
+        Remaining: ${remaining}/${maxCantrips}
+      </p>
+    `,
       type: CONST.CHAT_MESSAGE_STYLES.OTHER
     });
 
-    // Re-render to show updated state (remaining cantrips, disabled buttons, etc.)
-    app.render(true);
+    setTimeout(() => app.render(true), 0);
   }
 
   #evaluateOption({ value, max, remainingCantrips, cost, labelBase }) {
