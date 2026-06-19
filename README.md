@@ -72,13 +72,17 @@ When enabled, players may convert cantrips into spell slots.
 ---
 
 ## Conversion Formula
-Cost = costPerLevel × Spell Level
+Standard Slots:
+Cost = Spell Level × Cost Per Level
+
+Pact Magic:
+Cost = Pact Slot Level + Cost Per Level
 
 
 Example:
 - costPerLevel = 3
 - Level 2 spell
-- Cost = 6 cantrips
+- Cost = 6 cantrips for Wizard, 5 cantrips for Warlock
 
 Fully configurable.
 
