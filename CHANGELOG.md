@@ -1,4 +1,8 @@
 # Changelog
+## [2.7.6] - 2026-07-18 – Installation Reliability
+- Fixed automatic installation of the required Color Picker dependency by using
+  its stable release manifest instead of its development-branch manifest.
+
 ## [2.7.5] - 2026-07-18 – Architecture and Conversion Reliability
 - Split lifecycle hooks, dialog applications, sheet integration, and domain logic into focused modules.
 - Removed circular dependencies between utilities, dialogs, and conversion logic.
