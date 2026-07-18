@@ -1,0 +1,84 @@
+<form class="cantrip-counter-config-form cantrip-counter-color-form">
+
+  <!-- LOW THRESHOLD -->
+  <div class="form-group cantrip-counter-range-group">
+    <label>Low Threshold (%)</label>
+
+    <div class="cantrip-counter-control">
+      <range-picker
+        name="thresholdLow"
+        value="{{thresholdLow}}"
+        min="0"
+        max="100"
+        step="1">
+      </range-picker>
+    </div>
+  </div>
+
+
+  <!-- MEDIUM THRESHOLD -->
+  <div class="form-group cantrip-counter-range-group">
+    <label>Medium Threshold (%)</label>
+
+    <div class="cantrip-counter-control">
+      <range-picker
+        name="thresholdMedium"
+        value="{{thresholdMedium}}"
+        min="0"
+        max="100"
+        step="1">
+      </range-picker>
+    </div>
+  </div>
+
+  <hr>
+
+  <!-- LOW COLOR -->
+  <div class="form-group cantrip-counter-color-group">
+    <div class="cantrip-counter-control">
+      <label>Low Color</label>
+      <input type="color"
+             name="glowLow"
+             value="{{glowLow}}">
+    </div>
+  </div>
+
+
+  <!-- MEDIUM COLOR -->
+  <div class="form-group cantrip-counter-color-group">
+    <div class="cantrip-counter-control">
+      <label>Medium Color</label>
+      <input type="color"
+             name="glowMedium"
+             value="{{glowMedium}}">
+    </div>
+  </div>
+
+
+  <!-- HIGH COLOR -->
+  <div class="form-group cantrip-counter-color-group">
+    <div class="cantrip-counter-control">
+      <label>High Color</label>
+      <input type="color"
+             name="glowHigh"
+             value="{{glowHigh}}">
+    </div>
+  </div>
+
+
+  <!-- BUTTONS -->
+  <div class="cantrip-counter-form-actions">
+
+    <button type="submit"
+            data-action="submit">
+      Save
+    </button>
+
+    <button type="button"
+            data-action="resetDefaults">
+      Reset to Defaults
+    </button>
+
+  </div>
+
+</form>

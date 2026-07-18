@@ -1,0 +1,42 @@
+<div class="cantrip-counter-conversion-dialog">
+  {{#unless conversionEnabled}}
+    <p><strong>Spell-slot conversion is disabled.</strong></p>
+  {{else}}
+    {{#if limitReached}}
+      <p><strong>Conversion Limit Reached</strong></p>
+      <p>
+        You have {{remainingConversions}}/{{maxConversions}} conversions
+        remaining this long rest.
+      </p>
+    {{else}}
+      <p><strong>Available Cantrips:</strong> {{remainingCantrips}}</p>
+      <p>
+        <strong>Conversions Remaining:</strong>
+        {{remainingConversions}}/{{maxConversions}}
+      </p>
+      <hr>
+
+      {{#if hasOptions}}
+        {{#each options}}
+          <div class="cantrip-counter-conversion-option">
+            <strong>{{label}}</strong>
+            <div>Slots: {{value}}/{{max}}</div>
+            {{#if affordable}}
+              <button
+                type="button"
+                data-action="restore"
+                data-type="{{type}}"
+                data-level="{{level}}">
+                {{buttonLabel}}
+              </button>
+            {{/if}}
+          </div>
+        {{/each}}
+      {{else}}
+        <p class="cantrip-counter-muted">
+          No spell slots can currently be restored.
+        </p>
+      {{/if}}
+    {{/if}}
+  {{/unless}}
+</div>

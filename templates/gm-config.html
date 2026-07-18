@@ -1,6 +1,6 @@
-<form style="width:100%; padding:12px; box-sizing:border-box;">
-  <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px;">
-    <label style="flex:1;" for="cantrip-counter-actor-bonus">
+<form class="cantrip-counter-config-form">
+  <div class="cantrip-counter-form-row cantrip-counter-form-row-spaced">
+    <label for="cantrip-counter-actor-bonus">
       Additional Cantrip Uses
     </label>
     <input
@@ -9,26 +9,25 @@
       name="bonusCantrips"
       value="{{bonusCantrips}}"
       min="0"
-      step="1"
-      style="width:80px;">
+      step="1">
   </div>
 
-  <hr style="margin:12px 0;">
+  <hr>
 
-  <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+  <div class="cantrip-counter-form-row">
     <input
       id="cantrip-counter-conversion-override"
       type="checkbox"
       name="overrideEnabled"
       data-action="toggleOverride"
       {{#if overrideEnabled}}checked{{/if}}>
-    <label style="flex:1;" for="cantrip-counter-conversion-override">
+    <label for="cantrip-counter-conversion-override">
       Enable Conversion Override
     </label>
   </div>
 
-  <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-    <label style="flex:1;" for="cantrip-counter-cost-per-level">
+  <div class="cantrip-counter-form-row">
+    <label for="cantrip-counter-cost-per-level">
       Cost Per Level
     </label>
     <input
@@ -37,12 +36,13 @@
       name="costPerLevel"
       value="{{costPerLevel}}"
       data-conversion-override-field
-      style="width:80px;"
+      min="1"
+      step="1"
       {{#unless overrideEnabled}}disabled{{/unless}}>
   </div>
 
-  <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-    <label style="flex:1;" for="cantrip-counter-max-conversion-level">
+  <div class="cantrip-counter-form-row">
+    <label for="cantrip-counter-max-conversion-level">
       Max Conversion Level
     </label>
     <input
@@ -51,12 +51,14 @@
       name="maxConversionLevel"
       value="{{maxConversionLevel}}"
       data-conversion-override-field
-      style="width:80px;"
+      min="1"
+      max="9"
+      step="1"
       {{#unless overrideEnabled}}disabled{{/unless}}>
   </div>
 
-  <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
-    <label style="flex:1;" for="cantrip-counter-max-conversions">
+  <div class="cantrip-counter-form-row">
+    <label for="cantrip-counter-max-conversions">
       Max Conversions Per Long Rest
     </label>
     <input
@@ -65,15 +67,15 @@
       name="maxConversionsPerLongRest"
       value="{{maxConversionsPerLongRest}}"
       data-conversion-override-field
-      style="width:80px;"
+      min="1"
+      step="1"
       {{#unless overrideEnabled}}disabled{{/unless}}>
   </div>
 
-  <div style="display:flex; justify-content:center;">
+  <div class="cantrip-counter-form-actions">
     <button
       type="submit"
-      data-action="submit"
-      style="flex:0 0 30%; margin-top:5px;">
+      data-action="submit">
       Save
     </button>
   </div>

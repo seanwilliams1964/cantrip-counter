@@ -36,3 +36,95 @@
     width: 2.5em;
     text-align: right;
 }
+
+.cantrip-counter-config-form {
+    box-sizing: border-box;
+    padding: 12px;
+    width: 100%;
+}
+
+.cantrip-counter-config-form hr {
+    margin: 12px 0;
+}
+
+.cantrip-counter-form-row {
+    align-items: center;
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.cantrip-counter-form-row-spaced {
+    margin-bottom: 14px;
+}
+
+.cantrip-counter-form-row label {
+    flex: 1;
+}
+
+.cantrip-counter-form-row input[type="number"] {
+    width: 80px;
+}
+
+.cantrip-counter-form-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 10px;
+}
+
+.cantrip-counter-form-actions button {
+    flex: 0 0 40%;
+}
+
+.cantrip-counter-color-form {
+    padding: 16px;
+}
+
+.cantrip-counter-range-group {
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 18px;
+}
+
+.cantrip-counter-range-group > label,
+.cantrip-counter-color-group label {
+    display: block;
+    margin-bottom: 6px;
+}
+
+.cantrip-counter-color-group {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 14px;
+}
+
+.cantrip-counter-control {
+    border-radius: 6px;
+    padding: 8px;
+    width: 80%;
+}
+
+.cantrip-counter-control range-picker,
+.cantrip-counter-control input[type="color"] {
+    width: 100%;
+}
+
+.cantrip-counter-control input[type="color"] {
+    cursor: pointer;
+    height: 40px;
+}
+
+.cantrip-counter-conversion-option {
+    margin-bottom: 12px;
+}
+
+.cantrip-counter-muted {
+    color: var(--color-text-light-5);
+}
+
+.cantrip-counter-confirmation {
+    padding: 16px;
+    text-align: center;
+}

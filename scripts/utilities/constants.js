@@ -1,6 +1,7 @@
 export const MODULE_ID = "cantrip-counter";
 export const DEFAULT_MAX_CONVERSION_LEVEL = 9;
-export const CURRENT_SCHEMA_VERSION = 3;
+export const DEFAULT_MAX_CONVERSIONS_PER_LONG_REST = 3;
+export const CURRENT_SCHEMA_VERSION = 4;
 
 /* -------------------------------------------- */
 /* Global (World) Settings Enum                 */
@@ -9,17 +10,14 @@ export const CURRENT_SCHEMA_VERSION = 3;
 export const GLOBAL_SETTING = Object.freeze({
 
   addSpellcastingClassLevels: "addSpellcastingClassLevels",
-  allowSlotConversion: "allowSlotConversion",
   bonusCantrips: "bonusCantrips",
   cantripIcon: "cantripIcon",
   costPerLevel: "costPerLevel",
   debugMode: "debugMode",
   enableConversion: "enableConversion",
-  glowEnabled: "glowEnabled",
   glowHigh: "glowHigh",
   glowLow: "glowLow",
   glowMedium: "glowMedium",
-  iconSize: "iconSize",
   maxConversionLevel: "maxConversionLevel",
   maxConversionsPerLongRest: "maxConversionsPerLongRest",
   preventCantripScaling: "preventCantripScaling",
@@ -34,6 +32,7 @@ export const GLOBAL_SETTING = Object.freeze({
 
 export const ACTOR_FLAG = Object.freeze({
   bonusCantrips: "bonusCantrips",
+  conversionsUsed: "conversionsUsed",
   costPerLevel: "costPerLevel",
   glowHigh: "glowHigh",
   glowLow: "glowLow",

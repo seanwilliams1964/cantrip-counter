@@ -3,6 +3,14 @@
 These notes are retained for the module maintainer. The release workflow excludes
 the `.github` directory from the distributed Cantrip Counter ZIP.
 
+## Validation
+
+Run the domain smoke tests before preparing a release:
+
+```sh
+node .github/scripts/domain-smoke.mjs
+```
+
 ## Manual release commands
 
 ```sh

@@ -254,6 +254,21 @@ The module includes migrations for older resource locations and conversion
 flags. It also performs a one-time defensive cleanup of module-owned resources
 on characters that are no longer eligible.
 
+## Internal architecture
+
+Cantrip Counter separates Foundry lifecycle integration from game rules and
+sheet presentation:
+
+```text
+scripts/core   → initialization, settings, hooks, and migrations
+scripts/logic  → eligibility, resources, cantrip totals, and conversions
+scripts/ui     → dialogs, sheet integration, Tidy support, and visuals
+scripts/utilities → constants and debug logging
+```
+
+Core modules may coordinate logic and UI. UI modules may consume logic, while
+logic and utility modules remain independent of the UI layer.
+
 ## Installation
 
 Install Cantrip Counter through Foundry's module browser using its manifest, or

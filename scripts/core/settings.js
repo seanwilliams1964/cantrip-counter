@@ -1,4 +1,8 @@
-import { GLOBAL_SETTING, MODULE_ID } from "../utilities/constants.js";
+import {
+  DEFAULT_MAX_CONVERSIONS_PER_LONG_REST,
+  GLOBAL_SETTING,
+  MODULE_ID
+} from "../utilities/constants.js";
 
 Hooks.once("init", () => {
 
@@ -76,7 +80,8 @@ Hooks.once("init", () => {
     config: true,
     restricted: true,
     type: Number,
-    default: 3
+    default: 3,
+    range: { min: 1, max: 20, step: 1 }
   });
 
   game.settings.register(MODULE_ID, GLOBAL_SETTING.maxConversionLevel, {
@@ -86,7 +91,8 @@ Hooks.once("init", () => {
     config: true,
     restricted: true,
     type: Number,
-    default: 9
+    default: 9,
+    range: { min: 1, max: 9, step: 1 }
   });
 
   game.settings.register(MODULE_ID, GLOBAL_SETTING.maxConversionsPerLongRest, {
@@ -96,7 +102,8 @@ Hooks.once("init", () => {
     config: true,
     restricted: true,
     type: Number,
-    default: 0
+    default: DEFAULT_MAX_CONVERSIONS_PER_LONG_REST,
+    range: { min: 1, max: 20, step: 1 }
   });
 
   // Low Threshold Color

@@ -1,4 +1,16 @@
 # Changelog
+## [2.7.5] - 2026-07-18 – Architecture and Conversion Reliability
+- Split lifecycle hooks, dialog applications, sheet integration, and domain logic into focused modules.
+- Removed circular dependencies between utilities, dialogs, and conversion logic.
+- Centralized conversion availability, cost, cap, and slot-option rules.
+- Made slot restoration and resource consumption a single actor update.
+- Standardized the conversion limit as a positive value with a default of three per long rest.
+- Added schema version 4 migration for legacy zero-valued conversion limits.
+- Fixed legacy conversion-flag migration and consolidated migrations.
+- Improved multiclass conversion support by showing eligible standard and Pact slots together.
+- Moved static dialog layout styling into templates and the module stylesheet.
+- Removed obsolete helpers, constants, exports, and development logging.
+
 ## [2.6.0] - 2026-06-19 – Tidy Sheet Compatibility
 - Updated how Pact Magic cantrip costs get calculated
 

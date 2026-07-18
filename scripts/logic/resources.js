@@ -1,11 +1,11 @@
-import { RESOURCE_LABEL } from "../utilities/constants.js";
+import {
+  DEFAULT_MAX_CONVERSIONS_PER_LONG_REST,
+  RESOURCE_LABEL
+} from "../utilities/constants.js";
 import { debugLog } from "../utilities/debug.js";
-import { getMaxCantripUses, hasCantripCounterEligibility } from "../utilities/helpers.js";
+import { getMaxCantripUses } from "./cantrips.js";
 import { getMaxConversionsPerLongRest } from "./conversions.js";
-
-/* ============================================ */
-/*  SYNC CANT RIP USES (secondary)             */
-/* ============================================ */
+import { hasCantripCounterEligibility } from "./eligibility.js";
 
 export async function syncResource(actor) {
   if (!actor || actor.type !== "character") return;
@@ -19,7 +19,7 @@ export async function syncResource(actor) {
     !resource ||
     resource.label !== RESOURCE_LABEL.cantripUses ||
     typeof resource.max !== "number" ||
-    typeof resource.value !== "number";   // ← Added for extra safety
+    typeof resource.value !== "number";
 
   if (needsInit) {
     await actor.update({
@@ -30,60 +30,54 @@ export async function syncResource(actor) {
       "system.resources.secondary.lr": true
     }, { cantripCounterSync: true });
 
-    debugLog(`Initialized Cantrip Uses (secondary) for ${actor.name} → ${maxCantripUses}`);
+    debugLog(
+      `Initialized Cantrip Uses for ${actor.name} → ${maxCantripUses}.`
+    );
     return;
   }
 
-  // Max changed (e.g. ability score or bonus setting updated)
   if (resource.max !== maxCantripUses) {
-    const newValue = Math.min(resource.value ?? 0, maxCantripUses);   // Clamp safely
+    const newValue = Math.min(resource.value ?? 0, maxCantripUses);
     await actor.update({
       "system.resources.secondary.max": maxCantripUses,
       "system.resources.secondary.value": newValue
     }, { cantripCounterSync: true });
 
-    debugLog(`Resynced Cantrip Uses max for ${actor.name}: ${resource.max} → ${maxCantripUses}, value clamped to ${newValue}`);
+    debugLog(
+      `Resynced Cantrip Uses for ${actor.name}:`
+      + ` ${resource.max} → ${maxCantripUses}; value ${newValue}.`
+    );
   }
 }
-
-/* ============================================ */
-/*  SYNC DAILY CONVERSIONS (tertiary)          */
-/* ============================================ */
 
 export async function syncConversionResource(actor) {
   if (!actor || actor.type !== "character") return;
 
   const hasSpellcasting = hasCantripCounterEligibility(actor);
-  const desiredMax = getMaxConversionsPerLongRest(actor) ?? 0;
+  const desiredMax = getMaxConversionsPerLongRest(actor)
+    ?? DEFAULT_MAX_CONVERSIONS_PER_LONG_REST;
 
   const currentTertiary = actor.system.resources?.tertiary;
-  const isModuleTertiary = currentTertiary?.label === RESOURCE_LABEL.dailyConversions;
-
-  const syncOptions = { cantripCounterSync: true };   // ← Centralized
+  const isModuleTertiary =
+    currentTertiary?.label === RESOURCE_LABEL.dailyConversions;
+  const syncOptions = { cantripCounterSync: true };
 
   if (!hasSpellcasting) {
-    // Clean up on non-spellcasters
     if (isModuleTertiary) {
       await actor.update({
-        "system.resources.tertiary": { label: "", value: 0, max: 0, sr: false, lr: false }
+        "system.resources.tertiary": {
+          label: "",
+          value: 0,
+          max: 0,
+          sr: false,
+          lr: false
+        }
       }, syncOptions);
-      debugLog(`Removed tertiary (Daily Conversions) from non-spellcaster: ${actor.name}`);
+      debugLog(`Removed Daily Conversions from ${actor.name}.`);
     }
     return;
   }
 
-  if (desiredMax <= 0) {
-    // Unlimited → remove the resource entirely
-    if (isModuleTertiary) {
-      await actor.update({
-        "system.resources.tertiary": { label: "", value: 0, max: 0, sr: false, lr: false }
-      }, syncOptions);
-      debugLog(`Removed tertiary (unlimited conversions) for ${actor.name}`);
-    }
-    return;
-  }
-
-  // Ensure correct resource exists with proper max/value
   let needsUpdate = false;
   const updates = {};
 
@@ -115,14 +109,10 @@ export async function syncConversionResource(actor) {
   }
 
   if (needsUpdate) {
-    await actor.update(updates, syncOptions);   // Note: no spread needed if updates is already an object
+    await actor.update(updates, syncOptions);
     debugLog(`Synced Daily Conversions for ${actor.name} → ${desiredMax}`);
   }
 }
-
-/* ============================================ */
-/*  REFRESH ALL (for world setting changes)    */
-/* ============================================ */
 
 export async function refreshAllCantripMaximums() {
   debugLog("Refreshing cantrip uses (secondary) for all characters");
@@ -138,9 +128,4 @@ export async function refreshAllConversionMaximums() {
     if (actor.type !== "character") continue;
     await syncConversionResource(actor);
   }
-}
-
-export function hasRemainingCantripUses(actor) {
-  const resource = actor.system.resources?.secondary;
-  return (resource?.value ?? 0) > 0;
 }
