@@ -39,6 +39,16 @@ Hooks.once("init", () => {
     default: 0
   });
 
+  game.settings.register(MODULE_ID, GLOBAL_SETTING.addSpellcastingClassLevels, {
+    name: "Add Spellcasting Class Levels",
+    hint: "If enabled, levels from classes or subclasses with spellcasting progression are added to maximum Cantrip Uses. Feat-based spellcasting does not add character levels.",
+    scope: "world",
+    config: true,
+    restricted: true,
+    type: Boolean,
+    default: false
+  });
+
   game.settings.register(MODULE_ID, GLOBAL_SETTING.preventCantripScaling, {
     name: "Prevent Cantrip Scaling",
     hint: "If enabled, cantrips will not scale with character level and will always deal damage as if cast by a 1st-level character.",

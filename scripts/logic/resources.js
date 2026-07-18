@@ -1,6 +1,6 @@
 import { RESOURCE_LABEL } from "../utilities/constants.js";
 import { debugLog } from "../utilities/debug.js";
-import { getSpellcastingAbilityScore, hasCantripCounterEligibility } from "../utilities/helpers.js";
+import { getMaxCantripUses, hasCantripCounterEligibility } from "../utilities/helpers.js";
 import { getMaxConversionsPerLongRest } from "./conversions.js";
 
 /* ============================================ */
@@ -10,8 +10,8 @@ import { getMaxConversionsPerLongRest } from "./conversions.js";
 export async function syncResource(actor) {
   if (!actor || actor.type !== "character") return;
 
-  const abilityScore = getSpellcastingAbilityScore(actor);
-  if (abilityScore === null || abilityScore === undefined) return;
+  const maxCantripUses = getMaxCantripUses(actor);
+  if (maxCantripUses === null || maxCantripUses === undefined) return;
 
   const resource = actor.system.resources?.secondary;
 
@@ -24,25 +24,25 @@ export async function syncResource(actor) {
   if (needsInit) {
     await actor.update({
       "system.resources.secondary.label": RESOURCE_LABEL.cantripUses,
-      "system.resources.secondary.value": abilityScore,
-      "system.resources.secondary.max": abilityScore,
+      "system.resources.secondary.value": maxCantripUses,
+      "system.resources.secondary.max": maxCantripUses,
       "system.resources.secondary.sr": true,
       "system.resources.secondary.lr": true
     }, { cantripCounterSync: true });
 
-    debugLog(`Initialized Cantrip Uses (secondary) for ${actor.name} → ${abilityScore}`);
+    debugLog(`Initialized Cantrip Uses (secondary) for ${actor.name} → ${maxCantripUses}`);
     return;
   }
 
   // Max changed (e.g. ability score or bonus setting updated)
-  if (resource.max !== abilityScore) {
-    const newValue = Math.min(resource.value ?? 0, abilityScore);   // Clamp safely
+  if (resource.max !== maxCantripUses) {
+    const newValue = Math.min(resource.value ?? 0, maxCantripUses);   // Clamp safely
     await actor.update({
-      "system.resources.secondary.max": abilityScore,
+      "system.resources.secondary.max": maxCantripUses,
       "system.resources.secondary.value": newValue
     }, { cantripCounterSync: true });
 
-    debugLog(`Resynced Cantrip Uses max for ${actor.name}: ${resource.max} → ${abilityScore}, value clamped to ${newValue}`);
+    debugLog(`Resynced Cantrip Uses max for ${actor.name}: ${resource.max} → ${maxCantripUses}, value clamped to ${newValue}`);
   }
 }
 

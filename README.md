@@ -1,308 +1,271 @@
 # Cantrip Counter
 
-A Foundry VTT module for DnD5e (5.2.5+) that transforms cantrips into a dynamic resource system with optional spell slot conversion mechanics.
+Cantrip Counter is a Foundry Virtual Tabletop module for DnD5e that turns
+cantrip casting into a limited, ability-based resource and optionally allows
+those uses to be converted into spell slots.
 
-Designed for Foundry VTT v13 and the DnD5e V2 sheet.
+The module is designed for Foundry VTT v13, DnD5e 5.2.5 or later, the DnD5e V2
+character sheet, and Tidy Sheet 5e.
 
----
+## Requirements
 
-## Overview
+- Foundry Virtual Tabletop v13
+- DnD5e system 5.2.5 or later
+- Color Picker module
 
-Cantrip Counter converts cantrips into a limited, ability-based resource.  
-Characters gain a number of cantrip uses equal to their spellcasting ability score.
+The Color Picker module is required for custom resource-color configuration.
+Cantrip Counter does not require Midi-QOL or another automation module.
 
-Optionally, cantrips can be converted into spell slots using a configurable cost formula.
+## Cantrip Uses
+
+Eligible characters receive a `Cantrip Uses` resource on their character
+sheet.
+
+The maximum number of Cantrip Uses is:
+
+```text
+Spellcasting ability score
++ World Bonus Cantrip Uses
++ Actor Bonus Cantrip Uses
++ Spellcasting class levels (when enabled)
+```
+
+Cantrip Counter uses the character's full spellcasting ability score, not the
+ability modifier. For example, a character with Intelligence 16 receives 16
+Cantrip Uses before any world-level or actor-level bonus is applied.
+
+The resource is recalculated when the spellcasting ability score or either
+configured bonus changes. When the optional spellcasting-class-level setting is
+enabled, it is also recalculated when a class or subclass changes. If the
+maximum decreases, the current value is reduced when necessary so that it does
+not exceed the new maximum.
+
+Only levels from classes with DnD5e spellcasting progression count. A
+spellcasting subclass also makes its linked class levels count. Feats can make
+a character eligible for Cantrip Counter, but feat-based spellcasting does not
+add character levels. A GM can use the actor's `Additional Cantrip Uses` field
+when a feat-based caster needs an individual adjustment.
 
 The module supports:
+
 - Full casters
 - Half casters
-- Warlocks (Pact Magic)
+- Pact Magic spellcasters
 - Multiclass characters
-- Per-character configuration overrides
+- Characters that receive spellcasting through supported feats
 
-This module is fully reactive and integrates cleanly with the DnD5e V2 character sheet.
+## Cantrip casting
 
----
+Cantrip Counter listens to the DnD5e Activity workflow. When a character casts
+an eligible level-0 spell, one Cantrip Use is consumed.
 
-# Core Cantrip System
+Casting is blocked when no Cantrip Uses remain. This applies to casting from
+character sheets, hotbars, chat cards, and other workflows that use DnD5e
+activities.
 
-## Dynamic Cantrip Resource
+The following do not consume Cantrip Uses:
 
-- Automatically creates a **Cantrip Uses** resource.
-- Maximum equals the character’s spellcasting ability score.
-- Optional world-level bonus modifier.
-- Automatically updates when:
-  - Spellcasting ability changes
-  - World bonus setting changes
-  - Long rest occurs
-- Cannot be removed from Favorites.
+- Spells cast from scrolls
+- Spells configured as at-will
+- Spells that use their own item-use resource
 
----
+## Rest recovery
 
-## Automatic Cantrip Tracking
+Cantrip Uses are configured as a short-rest and long-rest resource. Resting
+restores the resource through the normal DnD5e resource-recovery system.
 
-- Detects level 0 spell casts.
-- Decrements Cantrip Uses.
-- Blocks casting at 0 remaining.
-- Posts chat message confirming usage.
-- Works from both sheet and hotbar.
-- Does not require Midi-QOL.
+The spell-slot conversion allowance resets on a long rest. A short rest does
+not reset the conversion allowance.
 
----
+## Spell-slot conversion
 
-## Visual Feedback
+When spell-slot conversion is enabled, click the Cantrip Uses icon to open the
+conversion dialog.
 
-Resource color changes dynamically:
+The dialog examines the actor's spell slots and:
 
-| Remaining | Color |
-|------------|--------|
-| > 50% | 🟢 Green |
-| ≤ 50% | 🟡 Yellow |
-| ≤ 25% | 🔴 Red |
+- Omits slots that are already full
+- Shows the current and maximum value for each open slot
+- Shows when the actor cannot afford an available slot
+- Limits standard options to the configured maximum conversion level
+- Updates after each successful conversion
+- Posts successful conversion details to chat
 
-Glow appears around the resource when conversion is available.  
-Glow color matches the resource color.
+### Standard spell slots
 
----
+The cost of restoring one standard spell slot is:
 
-# Spell Slot Conversion (Optional)
+```text
+Spell level × Cost Per Level
+```
 
-When enabled, players may convert cantrips into spell slots.
+With the default Cost Per Level of 3:
 
----
+| Restored slot | Cantrip Uses |
+|---|---:|
+| Level 1 | 3 |
+| Level 2 | 6 |
+| Level 3 | 9 |
 
-## Conversion Formula
-Standard Slots:
-Cost = Spell Level × Cost Per Level
+### Pact Magic
 
-Pact Magic:
-Cost = Pact Slot Level + Cost Per Level
+For a Pact Magic slot, the cost is:
 
+```text
+Pact slot level + Cost Per Level
+```
 
-Example:
-- costPerLevel = 3
-- Level 2 spell
-- Cost = 6 cantrips for Wizard, 5 cantrips for Warlock
+The module reads the actor's stored Pact slot level and can derive it from the
+Warlock class level when necessary.
 
-Fully configurable.
+With a Pact slot level of 2 and the default Cost Per Level of 3, restoring one
+Pact slot costs 5 Cantrip Uses.
 
----
+## Conversion limit
 
-## Supported Spell Types
+Spell-slot conversion is always subject to a per-long-rest limit. Unlimited
+conversion is not supported.
 
-- Standard spell slots (spell1–spell9)
-- Warlock Pact Magic
-- Multiclass spellcasters
+By default, each actor may perform three spell-slot conversions per long rest.
+The world setting controls the default limit, and a GM can configure a
+different positive limit for an individual actor.
 
-Pact slot level is used automatically for cost calculation.
+The remaining allowance is tracked internally as a hidden `Daily Conversions`
+resource. Each successful conversion consumes one allowance, and the allowance
+resets on a long rest.
 
----
+The conversion limit is separate from the Cantrip Uses cost. A character must
+have both:
 
-## Smart Conversion Dialog
+- At least one conversion remaining for the current long rest
+- Enough Cantrip Uses to pay for the selected spell slot
 
-The conversion dialog:
+## Cantrip damage scaling
 
-- Only shows slots that are not full.
-- Only shows options the character can afford.
-- Hides slots above max conversion level.
-- Updates live after each conversion.
-- Posts conversion results to chat.
-- Disables entirely when cap reached.
+The `Prevent Cantrip Scaling` world setting attempts to keep cantrip damage at
+its first-level value by suppressing DnD5e's level-based damage scaling during
+damage rolls.
 
----
+This setting affects damage scaling only. It does not change the Cantrip Uses
+maximum or conversion costs.
 
-# Conversion Cap System
+## Visual feedback
 
-You can limit conversions per long rest.
+The Cantrip Uses value changes color based on the percentage remaining.
 
-- World setting controls default cap.
-- 0 = unlimited conversions.
-- Tracks per actor via flags.
-- Resets automatically on long rest.
-- Enforced at:
-  - UI level
-  - Glow level
-  - Logic level
+| Remaining percentage | Default color |
+|---|---|
+| At or below 25% | Red |
+| Above 25% and at or below 50% | Yellow |
+| Above 50% | Green |
 
-No bypass possible.
+The resource receives a matching glow when the actor has an open spell slot,
+enough Cantrip Uses to begin converting, and at least one conversion remaining.
 
----
+The colors and percentage thresholds can be configured globally or overridden
+for an individual actor.
 
-# World Settings
+## Character-sheet integration
 
-| Setting | Description |
-|----------|-------------|
-| Enable Conversion | Toggle conversion system |
-| Cost Per Level | Multiplier for slot cost |
-| Max Conversion Level | Highest slot eligible |
-| Max Conversions Per Long Rest | Conversion cap |
-| Bonus Cantrips | Additional cantrips added to max |
-| Custom Icon | Replace resource icon |
+Cantrip Counter supports the standard DnD5e V2 character sheet and includes
+compatibility handling for Tidy Sheet 5e and Tidy Sheet 5e Classic.
 
----
+The module:
 
-# Per-Character Overrides (GM Only)
+- Displays Cantrip Uses as a character resource
+- Uses a bundled cantrip icon by default
+- Supports a world-level custom icon
+- Adds a Tidy-compatible resource row when needed
+- Keeps the resource visible in Favorites
+- Hides the internal Daily Conversions resource
+- Prevents non-GM users from manually editing the visible Cantrip Uses value
 
-Each actor may override world settings.
+## GM actor configuration
 
-Accessible via a small ⚙ gear icon in the character sheet header.
+When a GM opens an eligible character sheet in edit mode, Cantrip Counter adds:
 
-The gear icon:
-- Appears only for GM
-- Appears only in Edit Mode
-- Is subtle and non-intrusive
+- A wizard-hat button for conversion-rule overrides
+- A palette button for resource colors and thresholds
 
----
+The wizard-hat dialog also provides an `Additional Cantrip Uses` field. This
+actor-specific bonus is added to the world bonus and affects only that actor.
+It is independent of the actor's conversion-rule override.
 
-## Override Options
+### Conversion overrides
 
-- Enable/disable custom conversion rules
-- Custom cost per level
-- Custom max conversion level
-- Custom max conversions per long rest
+A GM can override the world conversion rules for an individual actor:
 
----
+- Cost Per Level
+- Maximum Conversion Level
+- Maximum Conversions Per Long Rest
 
-## Override Behavior
+Disabling the override removes the actor's custom conversion settings and
+returns the actor to the world defaults.
 
-- Fields disabled until override enabled.
-- Confirmation dialog when disabling override.
-- Reset to Defaults button with confirmation.
-- Overrides stored in: flags.cantrip-counter
-- World settings automatically used when no override present.
+### Appearance overrides
 
----
+A GM can configure these values per actor:
 
-# Rest Integration
+- Low threshold
+- Medium threshold
+- Low color
+- Medium color
+- High color
 
-On Long Rest:
+The appearance dialog includes a confirmed `Reset to Defaults` action that
+removes the actor-specific appearance flags.
 
-- Cantrip Uses reset to maximum.
-- Conversion usage counter resets.
-- Chat message posted.
-- Sheet automatically re-renders.
+## World settings
 
-Short Rest does not reset conversion cap.
+| Setting | Default | Description |
+|---|---:|---|
+| Enable Debug Logging | Off | Writes diagnostic messages to the browser console |
+| Cantrip Counter Icon | Bundled icon | Selects a custom resource icon |
+| Bonus Cantrip Uses | 0 | Adds uses to the spellcasting ability score |
+| Add Spellcasting Class Levels | Off | Adds levels from spellcasting classes or subclasses to maximum uses |
+| Prevent Cantrip Scaling | Off | Suppresses level-based cantrip damage scaling |
+| Enable Spell Slot Conversion | On | Enables the conversion interface |
+| Cantrip Cost Per Spell Level | 3 | Controls standard and Pact conversion costs |
+| Maximum Convertible Spell Level | 9 | Highest standard spell-slot option |
+| Maximum Conversions Per Long Rest | 3 | Default per-actor conversion allowance |
+| Low Resource Color | Red | Color used at or below the low threshold |
+| Medium Resource Color | Yellow | Color used through the medium threshold |
+| High Resource Color | Green | Color used above the medium threshold |
+| Low Threshold | 25% | Low-resource boundary |
+| Medium Threshold | 50% | Medium-resource boundary |
 
----
+## Data and migration behavior
 
-# Reactivity System
+Cantrip Counter stores its resources in the actor's standard DnD5e resource
+fields:
 
-The module automatically responds to:
+```text
+system.resources.secondary  → Cantrip Uses
+system.resources.tertiary   → Daily Conversions
+```
 
-- Spellcasting ability changes
-- World bonus setting changes
-- Rest events
-- Conversion usage
-- Slot usage
-- Override changes
+Per-actor configuration is stored under:
 
-No reload required.
+```text
+flags.cantrip-counter
+```
 
----
+The module includes migrations for older resource locations and conversion
+flags. It also performs a one-time defensive cleanup of module-owned resources
+on characters that are no longer eligible.
 
-# Technical Architecture
+## Installation
 
-- Uses actor flags for per-character state.
-- Does not modify DnD5e system schema.
-- No template overrides.
-- No Favorites manipulation.
-- Defensive getter pattern prevents render errors.
-- Compatible with Foundry v13 and DnD5e 5.2.5+.
+Install Cantrip Counter through Foundry's module browser using its manifest, or
+place the module directory in:
 
----
+```text
+Data/modules/cantrip-counter
+```
 
-# Requirements
+Restart Foundry VTT, enable Cantrip Counter and Color Picker in the world, and
+open an eligible character sheet.
 
-- Foundry VTT v13
-- DnD5e System 5.2.5+
+## License
 
----
-
-# Installation
-
-1. Place module folder in: Data/modules/cantrip-counter
-2. Restart Foundry.
-3. Enable module in your world.
-
----
-
-# Known Compatibility Notes
-
-- Designed for DnD5e V2 default sheet.
-- Does not require automation modules.
-- Does not interfere with spell slot mechanics.
-- Fully supports Warlocks (Pact Magic).
-
----
-
-# Future Expansion Ideas
-
-- Per-actor spellcasting ability selection
-- Proficiency-based scaling options
-- Active Effect integration
-- Mystic Arcanum support
-- Conversion history logging
-- Override indicator badge on sheet
-
----
-
-# Summary
-
-Cantrip Counter transforms cantrips into a tactical resource with scalable conversion mechanics while maintaining full compatibility with the DnD5e system.
-
-It provides:
-
-- Mechanical balance control
-- Per-character flexibility
-- Clean UI integration
-- Strong enforcement logic
-- Reactive sheet behavior
-
----
-
-Enjoy your enhanced spellcasting system.
-
-Release Stuff
-git add .
-git commit -m "Release v1.4.0"
-git tag v1.4.0
-git push origin main
-git push origin v1.4.0
-
-
-git config --global alias.release '!f() { \
-  VERSION=$1; \
-  if [ -z "$VERSION" ]; then \
-    echo "Usage: git release x.y.z"; \
-    exit 1; \
-  fi; \
-  BRANCH=$(git rev-parse --abbrev-ref HEAD); \
-  if [ "$BRANCH" = "main" ]; then \
-    echo "Do not run release from main. Run it from your feature branch."; \
-    exit 1; \
-  fi; \
-  echo "Releasing v$VERSION from branch $BRANCH..."; \
-  \
-  # Update module.json version safely (macOS + Linux compatible) \
-  TMP_FILE=$(mktemp); \
-  jq --arg v "$VERSION" ".version = \$v" module.json > "$TMP_FILE" && mv "$TMP_FILE" module.json; \
-  \
-  git add module.json; \
-  git commit -m "Release v$VERSION"; \
-  \
-  git checkout main && \
-  git pull origin main && \
-  git merge $BRANCH && \
-  git tag v$VERSION && \
-  git push origin main && \
-  git push origin v$VERSION && \
-  git checkout $BRANCH; \
-  \
-  echo "Release v$VERSION complete."; \
-}; f'
-
-USE:
-git add .
-git commit -m "Your changes"
-git release 2.2.1
+Cantrip Counter is released under the MIT License.

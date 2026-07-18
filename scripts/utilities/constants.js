@@ -8,6 +8,7 @@ export const CURRENT_SCHEMA_VERSION = 3;
 
 export const GLOBAL_SETTING = Object.freeze({
 
+  addSpellcastingClassLevels: "addSpellcastingClassLevels",
   allowSlotConversion: "allowSlotConversion",
   bonusCantrips: "bonusCantrips",
   cantripIcon: "cantripIcon",
@@ -32,6 +33,7 @@ export const GLOBAL_SETTING = Object.freeze({
 /* -------------------------------------------- */
 
 export const ACTOR_FLAG = Object.freeze({
+  bonusCantrips: "bonusCantrips",
   costPerLevel: "costPerLevel",
   glowHigh: "glowHigh",
   glowLow: "glowLow",

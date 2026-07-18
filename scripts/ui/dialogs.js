@@ -2,7 +2,7 @@ import { consumeConversion, getMaxConversions, getRemainingConversions } from ".
 import { getCostPerLevel, getMaxConversionLevel, getPactConversionCost, hasReachedConversionCap } from "../logic/conversions.js";
 import { ACTOR_FLAG, GLOBAL_SETTING, MODULE_ID } from "../utilities/constants.js";
 import { debugLog, debugLogError } from "../utilities/debug.js";
-import { getActorSetting } from "../utilities/helpers.js";
+import { getActorBonusCantrips, getActorSetting } from "../utilities/helpers.js";
 
 const { ApplicationV2 } = foundry.applications.api;
 
@@ -46,42 +46,39 @@ class ActorConfigApp extends ApplicationV2 {
 
     if (!this.actor) {
       console.error("ActorConfigApp rendered without actor reference.");
-      return;
+      return "";
+    }
+
+    if (!game.user.isGM) {
+      ui.notifications.warn("Only a GM can configure Cantrip Counter actor settings.");
+      return "";
     }
 
     const actor = this.actor;
-    const overrideEnabled = getActorSetting(actor, ACTOR_FLAG.overrideEnabled, GLOBAL_SETTING.overrideEnabled);
-    const costPerLevel = getActorSetting(actor, ACTOR_FLAG.costPerLevel, GLOBAL_SETTING.costPerLevel);
-    const maxConversionLevel = getActorSetting(actor, ACTOR_FLAG.maxConversionLevel, GLOBAL_SETTING.maxConversionLevel);
-    const maxConversionsPerLongRest = getActorSetting(actor, ACTOR_FLAG.maxConversionsPerLongRest, GLOBAL_SETTING.maxConversionsPerLongRest) ?? "";
+    const templateData = {
+      bonusCantrips: getActorBonusCantrips(actor),
+      overrideEnabled: actor.getFlag(MODULE_ID, ACTOR_FLAG.overrideEnabled) === true,
+      costPerLevel: getActorSetting(
+        actor,
+        ACTOR_FLAG.costPerLevel,
+        GLOBAL_SETTING.costPerLevel
+      ),
+      maxConversionLevel: getActorSetting(
+        actor,
+        ACTOR_FLAG.maxConversionLevel,
+        GLOBAL_SETTING.maxConversionLevel
+      ),
+      maxConversionsPerLongRest: getActorSetting(
+        actor,
+        ACTOR_FLAG.maxConversionsPerLongRest,
+        GLOBAL_SETTING.maxConversionsPerLongRest
+      )
+    };
 
-    // Return raw HTML string (simplest approach)
-    return `
-      <form style="width:100%; padding:12px; box-sizing:border-box;">
-        <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
-          <input type="checkbox" name="overrideEnabled" data-action="toggleOverride" ${overrideEnabled ? "checked" : ""}/>
-          <label style="flex:1;">Enable Conversion Override</label>
-        </div>
-        <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-          <label style="flex:1;">Cost Per Level</label>
-          <input type="number" name="costPerLevel" value="${costPerLevel}"
-                 style="width:80px;" ${overrideEnabled ? "" : "disabled"} />
-        </div>
-        <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-          <label style="flex:1;">Max Conversion Level</label>
-          <input type="number" name="maxConversionLevel" value="${maxConversionLevel}"
-                 style="width:80px;" ${overrideEnabled ? "" : "disabled"} />
-        </div>
-        <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
-          <label style="flex:1;">Max Conversions Per Long Rest</label>
-          <input type="number" name="maxConversionsPerLongRest" value="${maxConversionsPerLongRest}"
-                 style="width:80px;" ${overrideEnabled ? "" : "disabled"} />
-        </div>
-        <div style="display:flex; justify-content:center;">
-          <button type="submit" data-action="submit" style="flex:0 0 30%; margin-top:5px;">Save</button>
-        </div>
-      </form>
-    `;
+    return foundry.applications.handlebars.renderTemplate(
+      "modules/cantrip-counter/templates/gm-config.html",
+      templateData
+    );
   }
 
   /**
@@ -104,44 +101,65 @@ class ActorConfigApp extends ApplicationV2 {
   }
 
   static async #onToggleOverride(event, target) {
-    const app = this;
+    if (!game.user.isGM) return;
+
     const form = target.closest("form");
-    const numericFields = form.querySelectorAll('input[type="number"]');
+    const conversionFields = form.querySelectorAll("[data-conversion-override-field]");
     const isEnabled = target.checked;
-    numericFields.forEach(input => {
+
+    conversionFields.forEach(input => {
       input.disabled = !isEnabled;
-      if (!isEnabled) input.value = "";
     });
+
     debugLog("Override toggled via action", { checked: isEnabled });
   }
 
   static async #onSubmit(event, target) {
     event.preventDefault();
+
+    if (!game.user.isGM) {
+      ui.notifications.warn("Only a GM can configure Cantrip Counter actor settings.");
+      return;
+    }
+
     const app = this;
     const form = target.closest("form");
     const formData = new FormData(form);
     const checkbox = form.querySelector('input[name="overrideEnabled"]');
     const enabled = checkbox?.checked ?? false;
-    debugLog("Form submitted via action", { enabled });
-    if (!enabled) {
+    const overrideWasEnabled =
+      app.actor.getFlag(MODULE_ID, ACTOR_FLAG.overrideEnabled) === true;
+    const bonusCantrips = Math.max(
+      0,
+      Math.trunc(Number(formData.get("bonusCantrips")) || 0)
+    );
+
+    debugLog("Form submitted via action", { enabled, bonusCantrips });
+
+    if (!enabled && overrideWasEnabled) {
       const confirmed = await Dialog.confirm({
         title: "Disable Override?",
         content: `<p>This will remove all custom conversion settings for this actor. Continue?</p>`
       });
+
       if (!confirmed) return;
+    }
+
+    await app.actor.setFlag(
+      MODULE_ID,
+      ACTOR_FLAG.bonusCantrips,
+      bonusCantrips
+    );
+
+    if (!enabled) {
       await app.actor.unsetFlag(MODULE_ID, ACTOR_FLAG.overrideEnabled);
       await app.actor.unsetFlag(MODULE_ID, ACTOR_FLAG.costPerLevel);
       await app.actor.unsetFlag(MODULE_ID, ACTOR_FLAG.maxConversionLevel);
       await app.actor.unsetFlag(MODULE_ID, ACTOR_FLAG.maxConversionsPerLongRest);
-      if (checkbox) checkbox.checked = false;
-      const numericFields = form.querySelectorAll('input[type="number"]');
-      numericFields.forEach(input => {
-        input.value = "";
-        input.disabled = true;
-      });
       app.close();
       return;
     }
+
     await app.actor.setFlag(MODULE_ID, ACTOR_FLAG.overrideEnabled, true);
     await app.actor.setFlag(MODULE_ID, ACTOR_FLAG.costPerLevel, Number(formData.get("costPerLevel")) || 0);
     await app.actor.setFlag(MODULE_ID, ACTOR_FLAG.maxConversionLevel, Number(formData.get("maxConversionLevel")) || 0);
@@ -149,26 +167,31 @@ class ActorConfigApp extends ApplicationV2 {
     app.close();
   }
 
-  // Optional: Use _onRender (or _onFirstRender) instead of _onRender for initial forcing
   _onRender(context, options) {
     super._onRender?.(context, options);
 
-    // Force initial checkbox + disabled state (safety net)
     const overrideEnabled = this.actor.getFlag(MODULE_ID, ACTOR_FLAG.overrideEnabled) ?? false;
     const checkbox = this.element.querySelector('input[name="overrideEnabled"]');
+
     if (checkbox) {
       checkbox.checked = overrideEnabled;
-      const numericFields = this.element.querySelectorAll('input[type="number"]');
-      numericFields.forEach(input => {
+      const conversionFields = this.element.querySelectorAll("[data-conversion-override-field]");
+
+      conversionFields.forEach(input => {
         input.disabled = !overrideEnabled;
-        if (!overrideEnabled) input.value = "";
       });
     }
+
     debugLog("Initial state forced in _onRender");
   }
 }
 
 export function openActorConfigDialog(actor) {
+  if (!game.user.isGM) {
+    ui.notifications.warn("Only a GM can configure Cantrip Counter actor settings.");
+    return;
+  }
+
   new ActorConfigApp(actor).render(true);
 }
 

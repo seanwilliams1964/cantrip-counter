@@ -13,7 +13,8 @@
     "scripts/core/cantrip-counter.js"
   ],
   "templates": [
-    "templates/actor-config.html"
+    "templates/actor-config.html",
+    "templates/gm-config.html"
   ],
   "styles": [
     "styles/cantrip-counter.css"

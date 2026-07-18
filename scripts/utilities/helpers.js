@@ -1,5 +1,5 @@
 import { openConversionDialog } from "../ui/dialogs.js";
-import { GLOBAL_SETTING, MODULE_ID } from "../utilities/constants.js";
+import { ACTOR_FLAG, GLOBAL_SETTING, MODULE_ID } from "../utilities/constants.js";
 import { debugLog, debugLogError } from "./debug.js";
 
 export function getSpellcastingAbilityScore(actor) {
@@ -9,10 +9,76 @@ export function getSpellcastingAbilityScore(actor) {
   const ability = actor.system.abilities[abilityKey];
   if (!ability) return null;
 
-  const baseScore = ability.value ?? 0;
-  const bonus = game.settings.get(MODULE_ID, GLOBAL_SETTING.bonusCantrips) ?? 0;
+  const abilityScore = Number(ability.value ?? 0);
 
-  return baseScore + bonus;
+  if (!Number.isFinite(abilityScore)) return null;
+  return abilityScore;
+}
+
+export function getMaxCantripUses(actor) {
+  const abilityScore = getSpellcastingAbilityScore(actor);
+  if (abilityScore === null) return null;
+
+  const worldBonus = Number(
+    game.settings.get(MODULE_ID, GLOBAL_SETTING.bonusCantrips) ?? 0
+  );
+  const actorBonus = getActorBonusCantrips(actor);
+  const includeSpellcastingClassLevels = game.settings.get(
+    MODULE_ID,
+    GLOBAL_SETTING.addSpellcastingClassLevels
+  );
+  const classLevelBonus = includeSpellcastingClassLevels
+    ? getSpellcastingClassLevels(actor)
+    : 0;
+
+  return abilityScore
+    + (Number.isFinite(worldBonus) ? worldBonus : 0)
+    + actorBonus
+    + classLevelBonus;
+}
+
+export function getActorBonusCantrips(actor) {
+  if (!actor || typeof actor.getFlag !== "function") return 0;
+
+  const value = Number(
+    actor.getFlag(MODULE_ID, ACTOR_FLAG.bonusCantrips) ?? 0
+  );
+
+  if (!Number.isFinite(value)) return 0;
+  return Math.max(0, Math.trunc(value));
+}
+
+export function getSpellcastingClassLevels(actor) {
+  if (!actor || actor.type !== "character") return 0;
+
+  const items = Array.from(actor.items ?? []);
+  const classes = items.filter(item => item.type === "class");
+  const subclasses = items.filter(item => item.type === "subclass");
+
+  return classes.reduce((total, classItem) => {
+    const classIdentifier = classItem.system?.identifier;
+    const classHasSpellcasting = hasSpellcastingProgression(classItem);
+    const subclassHasSpellcasting = Boolean(classIdentifier)
+      && subclasses.some(subclass =>
+        subclass.system?.classIdentifier === classIdentifier
+        && hasSpellcastingProgression(subclass)
+      );
+
+    if (!classHasSpellcasting && !subclassHasSpellcasting) return total;
+
+    const levels = Number(classItem.system?.levels ?? 0);
+    if (!Number.isFinite(levels)) return total;
+
+    return total + Math.max(0, Math.trunc(levels));
+  }, 0);
+}
+
+function hasSpellcastingProgression(item) {
+  const progression = String(
+    item?.system?.spellcasting?.progression ?? "none"
+  ).trim().toLowerCase();
+
+  return progression !== "" && progression !== "none";
 }
 
 /**
@@ -166,12 +232,15 @@ function getFeatSpellcastingAbilityKey(actor) {
   for (const feat of feats) {
     const advancements = Object.values(feat.toObject().system?.advancement ?? {});
 
-    const spellChoice = advancements.find(adv =>
+    const spellChoices = advancements.filter(adv =>
       adv.type === "ItemChoice" &&
       adv.configuration?.type === "spell" &&
-      adv.value?.ability &&
-      String(adv.configuration?.restriction?.level) !== "0"
+      adv.value?.ability
     );
+
+    const spellChoice = spellChoices.find(adv =>
+      String(adv.configuration?.restriction?.level) !== "0"
+    ) ?? spellChoices[0];
 
     const abilityKey = spellChoice?.value?.ability;
 

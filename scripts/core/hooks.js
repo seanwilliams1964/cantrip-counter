@@ -1,6 +1,8 @@
 import { consumeCantrip } from "../logic/cantrip-state.js";
 import {
   hasRemainingCantripUses,
+  refreshAllCantripMaximums,
+  refreshAllConversionMaximums,
   syncConversionResource,
   syncResource
 } from "../logic/resources.js";
@@ -10,7 +12,7 @@ import { debugLog } from "../utilities/debug.js";
 import {
   getActorSetting,
   getActorSpellcastingChanges,
-  getSpellcastingAbilityScore,
+  getMaxCantripUses,
   hasCantripCounterEligibility,
   refreshTidyCantripResource
 } from "../utilities/helpers.js";
@@ -92,8 +94,8 @@ Hooks.on("updateActor", async (actor, changes, options) => {
   const abilityChanged = getActorSpellcastingChanges(actor, changes);
 
   if (abilityChanged) {
-    const abilityScore = getSpellcastingAbilityScore(actor); // assuming this exists
-    if (abilityScore === null || abilityScore === undefined) return;
+    const maxCantripUses = getMaxCantripUses(actor);
+    if (maxCantripUses === null || maxCantripUses === undefined) return;
 
     const resource = actor.system.resources?.secondary;
     if (!resource || resource.label !== RESOURCE_LABEL.cantripUses) return;
@@ -101,16 +103,16 @@ Hooks.on("updateActor", async (actor, changes, options) => {
     const currentMax = resource.max ?? 0;
     const currentValue = resource.value ?? 0;
 
-    if (currentMax === abilityScore) return;
+    if (currentMax === maxCantripUses) return;
 
-    const newClampedValue = Math.min(currentValue, abilityScore);
+    const newClampedValue = Math.min(currentValue, maxCantripUses);
 
     await actor.update({
-      "system.resources.secondary.max": abilityScore,
+      "system.resources.secondary.max": maxCantripUses,
       "system.resources.secondary.value": newClampedValue
     }, { cantripCounterSync: true });
 
-    debugLog(`Resynced ${actor.name}: max ${currentMax} → ${abilityScore}, value ${currentValue} → ${newClampedValue}`);
+    debugLog(`Resynced ${actor.name}: max ${currentMax} → ${maxCantripUses}, value ${currentValue} → ${newClampedValue}`);
   }
 
   debugLog("Exiting consolidated updateActor hook for", actor.name);
@@ -303,13 +305,44 @@ async function handleCantripSheetRender(app) {
   }
 }
 
-Hooks.on("updateSetting", async (setting) => {
-  if (setting.key === `${MODULE_ID}.bonusCantrips`) {
+Hooks.on("updateSetting", async (setting, changes, options, userId) => {
+  if (!game.user.isGM) return;
+  if (userId && userId !== game.user.id) return;
+
+  if (
+    setting.key === `${MODULE_ID}.${GLOBAL_SETTING.bonusCantrips}`
+    || setting.key === `${MODULE_ID}.${GLOBAL_SETTING.addSpellcastingClassLevels}`
+  ) {
     await refreshAllCantripMaximums();
   }
-  if (setting.key === `${MODULE_ID}.maxConversionsPerLongRest`) {
+  if (
+    setting.key
+    === `${MODULE_ID}.${GLOBAL_SETTING.maxConversionsPerLongRest}`
+  ) {
     await refreshAllConversionMaximums();
   }
+});
+
+async function syncCantripResourceForClassChange(item, userId) {
+  if (userId !== game.user.id) return;
+  if (!item || !["class", "subclass"].includes(item.type)) return;
+
+  const actor = item.parent;
+  if (!actor || actor.type !== "character") return;
+
+  await syncResource(actor);
+}
+
+Hooks.on("createItem", async (item, options, userId) => {
+  await syncCantripResourceForClassChange(item, userId);
+});
+
+Hooks.on("updateItem", async (item, changes, options, userId) => {
+  await syncCantripResourceForClassChange(item, userId);
+});
+
+Hooks.on("deleteItem", async (item, options, userId) => {
+  await syncCantripResourceForClassChange(item, userId);
 });
 
 Hooks.on("dnd5e.preRollDamage", (config, dialogConfig, messageConfig) => {
